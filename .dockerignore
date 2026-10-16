@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+database.sqlite*
+*.sqlite*
+*.log
+.DS_Store
+extensions/**/dist
+extensions/**/.build-lock

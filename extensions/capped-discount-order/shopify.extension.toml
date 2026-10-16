@@ -1,0 +1,20 @@
+name = "capped-discount-order"
+type = "function"
+api_version = "2026-01"
+uid = "3136607f-4ff2-f870-992a-e8f69b26e1163110f412"
+
+[build]
+typegen_command = "echo types-ready"
+path = "dist/function.wasm"
+
+[[targeting]]
+target = "purchase.order-discount.run"
+input_query = "src/run.graphql"
+export = "run"
+
+[ui]
+enable_create = true
+
+[ui.paths]
+create = "/app/discounts/new"
+details = "/app/discounts/:id"

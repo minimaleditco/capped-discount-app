@@ -1,0 +1,11 @@
+node_modules
+.env
+build
+public/build
+.cache
+*.log
+database.sqlite*
+*.sqlite*
+.DS_Store
+extensions/**/dist
+extensions/**/.build-lock

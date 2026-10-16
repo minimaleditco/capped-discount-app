@@ -1,0 +1,20 @@
+name = "Capped Discount App"
+client_id = "ba81420d6a010b4a47c085539bdc9675"
+application_url = "https://shopify.dev/apps/default-app-home"
+embedded = true
+
+[access_scopes]
+scopes = "write_discounts,read_discounts"
+
+[auth]
+redirect_urls = [
+  "https://shopify.dev/apps/default-app-home/auth/callback",
+  "https://shopify.dev/apps/default-app-home/auth/shopify/callback",
+  "https://shopify.dev/apps/default-app-home/api/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-01"
+
+[build]
+automatically_update_urls_on_dev = true
