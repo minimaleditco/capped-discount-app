@@ -5,10 +5,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
   if (url.searchParams.get("shop")) {
-    throw redirect(`/app?${url.searchParams.toString()}`);
+    return redirect(`/app?${url.searchParams.toString()}`);
   }
 
-  return redirect("/app");
+  return redirect("/auth/login");
 };
 
 export default function Index() {

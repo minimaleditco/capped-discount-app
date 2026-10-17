@@ -1,6 +1,6 @@
 name = "Capped Discount App"
 client_id = "ba81420d6a010b4a47c085539bdc9675"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://capped-discount-app.onrender.com"
 embedded = true
 
 [access_scopes]
@@ -8,13 +8,21 @@ scopes = "write_discounts,read_discounts"
 
 [auth]
 redirect_urls = [
-  "https://shopify.dev/apps/default-app-home/auth/callback",
-  "https://shopify.dev/apps/default-app-home/auth/shopify/callback",
-  "https://shopify.dev/apps/default-app-home/api/auth/callback"
+  "https://capped-discount-app.onrender.com/auth/callback",
+  "https://capped-discount-app.onrender.com/auth/shopify/callback",
+  "https://capped-discount-app.onrender.com/api/auth/callback"
 ]
 
 [webhooks]
 api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "/webhooks"
 
 [build]
 automatically_update_urls_on_dev = true
