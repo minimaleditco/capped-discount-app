@@ -1,4 +1,5 @@
-import type { LinksFunction } from "@remix-run/node";
+import type { HeadersFunction, LinksFunction } from "@remix-run/node";
+import { boundary } from "@shopify/shopify-app-remix/server";
 import {
   Links,
   Meta,
@@ -54,3 +55,7 @@ export function ErrorBoundary() {
     </html>
   );
 }
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};

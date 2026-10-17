@@ -7,8 +7,8 @@ import {
 import { SqliteSessionStorage } from "./db.server";
 
 const shopify = shopifyApp({
-  apiKey: process.env.SHOPIFY_API_KEY || "mock_api_key",
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "mock_api_secret",
+  apiKey: process.env.SHOPIFY_API_KEY || "ba81420d6a010b4a47c085539bdc9675",
+  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ("2026-01" as any),
   scopes: process.env.SCOPES?.split(",") || ["write_discounts", "read_discounts"],
   appUrl: process.env.SHOPIFY_APP_URL || "https://capped-discount-app.onrender.com",
