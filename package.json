@@ -2,6 +2,9 @@
   "name": "capped-discount-app",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "remix vite:build",
     "dev": "npx @shopify/cli app dev",
