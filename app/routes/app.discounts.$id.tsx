@@ -216,22 +216,36 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const actionType = formData.get("_action") as string;
 
-  const rawParamId = params.id;
-  const id = rawParamId?.startsWith("gid://")
-    ? rawParamId
-    : `gid://shopify/DiscountNode/${rawParamId}`;
-
+  const rawParamId = params.id || "";
+  const numericId = rawParamId.split("/").pop() || rawParamId;
   const method = (formData.get("method") as DiscountMethod) || "code";
+
+  // App-level GID for updates (DiscountCodeApp / DiscountAutomaticApp)
+  const appGid = method === "code"
+    ? `gid://shopify/DiscountCodeApp/${numericId}`
+    : `gid://shopify/DiscountAutomaticApp/${numericId}`;
+
+  // Node-level GID for delete / activate / deactivate (DiscountCodeNode / DiscountAutomaticNode)
+  const nodeGid = method === "code"
+    ? `gid://shopify/DiscountCodeNode/${numericId}`
+    : `gid://shopify/DiscountAutomaticNode/${numericId}`;
 
   // ACTION 1: DELETE DISCOUNT
   if (actionType === "delete") {
     try {
       if (method === "code") {
-        const response = await admin.graphql(DISCOUNT_CODE_DELETE, {
-          variables: { id },
+        let response = await admin.graphql(DISCOUNT_CODE_DELETE, {
+          variables: { id: nodeGid },
         });
-        const result = await response.json();
-        const userErrors = result.data?.discountCodeDelete?.userErrors || [];
+        let result: any = await response.json();
+        let userErrors = result.data?.discountCodeDelete?.userErrors || [];
+        if (userErrors.length > 0) {
+          response = await admin.graphql(DISCOUNT_CODE_DELETE, {
+            variables: { id: `gid://shopify/DiscountNode/${numericId}` },
+          });
+          result = await response.json();
+          userErrors = result.data?.discountCodeDelete?.userErrors || [];
+        }
         if (userErrors.length > 0) {
           return json<ActionData>(
             { errors: userErrors.map((e: { message: string }) => e.message) },
@@ -239,11 +253,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           );
         }
       } else {
-        const response = await admin.graphql(DISCOUNT_AUTOMATIC_DELETE, {
-          variables: { id },
+        let response = await admin.graphql(DISCOUNT_AUTOMATIC_DELETE, {
+          variables: { id: nodeGid },
         });
-        const result = await response.json();
-        const userErrors = result.data?.discountAutomaticDelete?.userErrors || [];
+        let result: any = await response.json();
+        let userErrors = result.data?.discountAutomaticDelete?.userErrors || [];
+        if (userErrors.length > 0) {
+          response = await admin.graphql(DISCOUNT_AUTOMATIC_DELETE, {
+            variables: { id: `gid://shopify/DiscountNode/${numericId}` },
+          });
+          result = await response.json();
+          userErrors = result.data?.discountAutomaticDelete?.userErrors || [];
+        }
         if (userErrors.length > 0) {
           return json<ActionData>(
             { errors: userErrors.map((e: { message: string }) => e.message) },
@@ -270,12 +291,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     try {
       if (method === "code") {
         const mutation = shouldDeactivate ? DISCOUNT_CODE_DEACTIVATE : DISCOUNT_CODE_ACTIVATE;
-        const response = await admin.graphql(mutation, { variables: { id } });
-        const result = await response.json();
-        const data = shouldDeactivate
+        let response = await admin.graphql(mutation, { variables: { id: nodeGid } });
+        let result: any = await response.json();
+        let data = shouldDeactivate
           ? result.data?.discountCodeDeactivate
           : result.data?.discountCodeActivate;
-        const userErrors = data?.userErrors || [];
+        let userErrors = data?.userErrors || [];
+
+        if (userErrors.length > 0) {
+          response = await admin.graphql(mutation, { variables: { id: `gid://shopify/DiscountNode/${numericId}` } });
+          result = await response.json();
+          data = shouldDeactivate
+            ? result.data?.discountCodeDeactivate
+            : result.data?.discountCodeActivate;
+          userErrors = data?.userErrors || [];
+        }
 
         if (userErrors.length > 0) {
           return json<ActionData>(
@@ -287,12 +317,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const mutation = shouldDeactivate
           ? DISCOUNT_AUTOMATIC_DEACTIVATE
           : DISCOUNT_AUTOMATIC_ACTIVATE;
-        const response = await admin.graphql(mutation, { variables: { id } });
-        const result = await response.json();
-        const data = shouldDeactivate
+        let response = await admin.graphql(mutation, { variables: { id: nodeGid } });
+        let result: any = await response.json();
+        let data = shouldDeactivate
           ? result.data?.discountAutomaticDeactivate
           : result.data?.discountAutomaticActivate;
-        const userErrors = data?.userErrors || [];
+        let userErrors = data?.userErrors || [];
+
+        if (userErrors.length > 0) {
+          response = await admin.graphql(mutation, { variables: { id: `gid://shopify/DiscountNode/${numericId}` } });
+          result = await response.json();
+          data = shouldDeactivate
+            ? result.data?.discountAutomaticDeactivate
+            : result.data?.discountAutomaticActivate;
+          userErrors = data?.userErrors || [];
+        }
 
         if (userErrors.length > 0) {
           return json<ActionData>(
@@ -408,7 +447,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     if (method === "code") {
       const variables = {
-        id,
+        id: appGid,
         codeAppDiscount: {
           title,
           startsAt: formattedStartsAt,
@@ -422,8 +461,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         },
       };
 
-      const response = await admin.graphql(DISCOUNT_CODE_APP_UPDATE, { variables });
-      const result: any = await response.json();
+      let response = await admin.graphql(DISCOUNT_CODE_APP_UPDATE, { variables });
+      let result: any = await response.json();
 
       if (result.errors && result.errors.length > 0) {
         return json<ActionData>(
@@ -432,7 +471,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         );
       }
 
-      const userErrors = result.data?.discountCodeAppUpdate?.userErrors || [];
+      let userErrors = result.data?.discountCodeAppUpdate?.userErrors || [];
+      if (userErrors.some((e: any) => e.message?.toLowerCase().includes("invalid id"))) {
+        variables.id = `gid://shopify/DiscountNode/${numericId}`;
+        response = await admin.graphql(DISCOUNT_CODE_APP_UPDATE, { variables });
+        result = await response.json();
+        userErrors = result.data?.discountCodeAppUpdate?.userErrors || [];
+      }
+
       if (userErrors.length > 0) {
         return json<ActionData>(
           { errors: userErrors.map((e: { message: string }) => e.message) },
@@ -441,7 +487,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
     } else {
       const variables = {
-        id,
+        id: appGid,
         automaticAppDiscount: {
           title,
           startsAt: formattedStartsAt,
@@ -455,8 +501,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         },
       };
 
-      const response = await admin.graphql(DISCOUNT_AUTOMATIC_APP_UPDATE, { variables });
-      const result: any = await response.json();
+      let response = await admin.graphql(DISCOUNT_AUTOMATIC_APP_UPDATE, { variables });
+      let result: any = await response.json();
 
       if (result.errors && result.errors.length > 0) {
         return json<ActionData>(
@@ -465,7 +511,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         );
       }
 
-      const userErrors = result.data?.discountAutomaticAppUpdate?.userErrors || [];
+      let userErrors = result.data?.discountAutomaticAppUpdate?.userErrors || [];
+      if (userErrors.some((e: any) => e.message?.toLowerCase().includes("invalid id"))) {
+        variables.id = `gid://shopify/DiscountNode/${numericId}`;
+        response = await admin.graphql(DISCOUNT_AUTOMATIC_APP_UPDATE, { variables });
+        result = await response.json();
+        userErrors = result.data?.discountAutomaticAppUpdate?.userErrors || [];
+      }
+
       if (userErrors.length > 0) {
         return json<ActionData>(
           { errors: userErrors.map((e: { message: string }) => e.message) },
