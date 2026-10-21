@@ -121,8 +121,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ functionId, availableFunctions: functions, queryErrors: result.errors || null });
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
-    console.error("Error fetching function ID in discounts.new loader:", error);
-    return json({ functionId: "", availableFunctions: [], queryErrors: [error?.message || "Failed to query functions"] });
+    
+    let errorDetail = "";
+    if (error instanceof Response) {
+      try {
+        const text = await error.clone().text();
+        console.error("Shopify Admin API Response in GET_FUNCTION_ID:", error.status, text);
+        try {
+          const jsonBody = JSON.parse(text);
+          errorDetail = typeof jsonBody?.errors === "string" ? jsonBody.errors : jsonBody?.errors?.message || jsonBody?.message || text;
+        } catch {
+          errorDetail = text;
+        }
+      } catch {
+        errorDetail = `HTTP ${error.status}: ${error.statusText || "Forbidden"}`;
+      }
+    } else {
+      console.error("Error fetching function ID in discounts.new loader:", error);
+      errorDetail = error?.message || "Failed to query functions";
+    }
+
+    return json({ functionId: "", availableFunctions: [], queryErrors: [errorDetail] });
   }
 };
 
@@ -144,17 +163,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const combinesWithProductDiscounts = formData.get("combinesWithProductDiscounts") === "true";
   const combinesWithShippingDiscounts = formData.get("combinesWithShippingDiscounts") === "true";
   const functionId = (formData.get("functionId") as string)?.trim() || "";
-
-  if (!functionId) {
-    return json<ActionData>(
-      {
-        errors: [
-          "No Shopify Function is linked to this store. Because a new version was deployed to your Partner account, please reinstall or update the app on your test store from your Partner Dashboard so the Function extension is connected.",
-        ],
-      },
-      { status: 400 }
-    );
-  }
 
   const fieldErrors: Record<string, string> = {};
 
@@ -226,13 +234,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       discountMessage || `${percentage}% off up to ${getCurrencySymbol(currencyCode)}${maxCapAmount}`,
   };
 
+  const functionTarget = functionId
+    ? { functionId }
+    : { functionHandle: "capped-discount-order" };
+
   try {
     if (method === "code") {
       const variables = {
         discount: {
           title,
           code,
-          functionId,
+          ...functionTarget,
           startsAt: formattedStartsAt,
           endsAt: formattedEndsAt,
           combinesWith: {
@@ -275,7 +287,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const variables = {
         automaticAppDiscount: {
           title,
-          functionId,
+          ...functionTarget,
           startsAt: formattedStartsAt,
           endsAt: formattedEndsAt,
           combinesWith: {
@@ -319,14 +331,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect("/app");
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
-    console.error("Error executing discount creation mutation:", error);
-    const errorMsg =
-      error?.message ||
-      (typeof error === "string"
-        ? error
-        : "Failed to create discount on Shopify. Please ensure the app has been updated or reinstalled on your test store.");
+    
+    let errorDetail = "";
+    if (error instanceof Response) {
+      try {
+        const text = await error.clone().text();
+        console.error("Shopify Admin API Response in discount creation mutation:", error.status, text);
+        try {
+          const jsonBody = JSON.parse(text);
+          errorDetail = typeof jsonBody?.errors === "string" ? jsonBody.errors : jsonBody?.errors?.message || jsonBody?.message || text;
+        } catch {
+          errorDetail = text;
+        }
+      } catch {
+        errorDetail = `HTTP ${error.status}: ${error.statusText || "Forbidden"}`;
+      }
+    } else {
+      console.error("Error executing discount creation mutation:", error);
+      errorDetail = error?.message || "Failed to create discount on Shopify.";
+    }
+
     return json<ActionData>(
-      { errors: [errorMsg] },
+      { errors: [errorDetail] },
       { status: 500 }
     );
   }
@@ -402,13 +428,6 @@ export default function CreateDiscountRoute() {
 
   const handleSubmit = useCallback(() => {
     const errors: Record<string, string> = {};
-
-    if (!functionId) {
-      setClientErrors({
-        title: "No Shopify Function extension is linked to this store. Please reinstall the app on your test store from the Partner Dashboard to connect the Function.",
-      });
-      return;
-    }
 
     if (!title.trim()) {
       errors.title = "Discount title is required.";
@@ -842,15 +861,16 @@ export default function CreateDiscountRoute() {
                     <InlineStack gap="200" align="start">
                       <Badge tone="success">Function Linked</Badge>
                       <Text as="span" variant="bodySm" tone="subdued">
-                        {functionId.slice(-8)}
+                        ID: {functionId.slice(-8)}
                       </Text>
                     </InlineStack>
                   ) : (
-                    <Banner tone="warning">
-                      <Text as="p">
-                        No discount function ID detected. Ensure your Shopify Function is deployed.
+                    <InlineStack gap="200" align="start">
+                      <Badge tone="success">Function Linked</Badge>
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        Handle: capped-discount-order
                       </Text>
-                    </Banner>
+                    </InlineStack>
                   )}
                 </BlockStack>
               </Card>

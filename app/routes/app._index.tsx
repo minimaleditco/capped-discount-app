@@ -148,8 +148,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     let errorMsg = "Failed to load discounts from Shopify Admin.";
     if (error instanceof Response) {
       try {
-        const body = await error.clone().json();
-        errorMsg = body?.errors?.message || body?.message || `HTTP ${error.status}: ${error.statusText || "Forbidden"}`;
+        const text = await error.clone().text();
+        console.error("Shopify Admin API Response in app._index loader:", error.status, text);
+        try {
+          const jsonBody = JSON.parse(text);
+          errorMsg = typeof jsonBody?.errors === "string" 
+            ? jsonBody.errors 
+            : jsonBody?.errors?.message || jsonBody?.message || text;
+        } catch {
+          errorMsg = text || `HTTP ${error.status}: ${error.statusText || "Access Forbidden"}`;
+        }
       } catch {
         errorMsg = `HTTP ${error.status}: ${error.statusText || "Access Forbidden"}`;
       }
