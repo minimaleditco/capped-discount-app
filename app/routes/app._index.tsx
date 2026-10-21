@@ -150,20 +150,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       (error instanceof Response && error.status === 403) ||
       (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
 
-    if (isForbidden && session?.shop) {
-      console.warn(`[Auto-Recovery] Access token for ${session.shop} is forbidden. Purging session from database and redirecting to OAuth.`);
-      try {
-        if (db) {
-          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
-        }
-      } catch (dbErr) {
-        console.error("Failed to purge session on 403:", dbErr);
-      }
-      throw redirect(`/auth?shop=${session.shop}`);
-    }
-
     let errorMsg = "Failed to load discounts from Shopify Admin.";
-    if (error instanceof Response) {
+    if (isForbidden) {
+      errorMsg = `Shopify Access Forbidden (403): This draft app belongs to Partner Organization "Minimal Edit". In Shopify, unpublished apps can only access development stores inside the same Partner organization. If you are seeing this on a store from another account, please open the app in a store created under Minimal Edit (such as minimal-discount-test-3.myshopify.com).`;
+    } else if (error instanceof Response) {
       try {
         const text = await error.clone().text();
         console.error("Shopify Admin API Response in app._index loader:", error.status, text);
