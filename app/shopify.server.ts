@@ -10,7 +10,7 @@ const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY || "2c334cb8162a93e88de39958c51ff783",
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ("2026-01" as any),
-  scopes: process.env.SCOPES?.split(",") || ["write_discounts", "read_discounts"],
+  scopes: ["write_discounts", "read_discounts"],
   appUrl: process.env.SHOPIFY_APP_URL || "https://capped-discount-app.onrender.com",
   authPathPrefix: "/auth",
   sessionStorage: new SqliteSessionStorage(),

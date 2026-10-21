@@ -36,6 +36,11 @@ if (DatabaseSync) {
       );
       CREATE INDEX IF NOT EXISTS idx_shopify_sessions_shop ON shopify_sessions(shop);
     `);
+    try {
+      dbInstance.exec("DELETE FROM shopify_sessions WHERE scope NOT LIKE '%write_discounts%';");
+    } catch {
+      // ignore
+    }
   } catch (err) {
     console.error("Failed to initialize SQLite DatabaseSync, falling back to memory:", err);
     dbInstance = null;
