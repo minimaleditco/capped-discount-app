@@ -126,18 +126,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const isForbidden =
       (error instanceof Response && error.status === 403) ||
       (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
-
-    if (isForbidden && session?.shop) {
-      console.warn(`[Auto-Recovery] Function query 403 for ${session.shop}. Purging session and re-authorizing.`);
-      try {
-        if (db) {
-          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
-        }
-      } catch (dbErr) {
-        console.error("Failed to purge session on 403:", dbErr);
-      }
-      throw redirect(`/auth?shop=${session.shop}`);
-    }
     
     let errorDetail = "";
     if (error instanceof Response) {
@@ -352,18 +340,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const isForbidden =
       (error instanceof Response && error.status === 403) ||
       (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
-
-    if (isForbidden && session?.shop) {
-      console.warn(`[Auto-Recovery] Action mutation 403 for ${session.shop}. Purging session and re-authorizing.`);
-      try {
-        if (db) {
-          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
-        }
-      } catch (dbErr) {
-        console.error("Failed to purge session on 403:", dbErr);
-      }
-      throw redirect(`/auth?shop=${session.shop}`);
-    }
     
     let errorDetail = "";
     if (error instanceof Response) {
