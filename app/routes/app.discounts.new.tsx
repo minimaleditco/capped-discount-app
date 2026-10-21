@@ -34,6 +34,7 @@ import {
 } from "~/graphql/mutations";
 import { GET_FUNCTION_ID } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
+import { db } from "../db.server";
 
 interface ActionData {
   errors?: string[];
@@ -99,7 +100,7 @@ function generateRandomCode(percentage?: number): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
 
   try {
     const response = await admin.graphql(GET_FUNCTION_ID);
@@ -121,6 +122,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ functionId, availableFunctions: functions, queryErrors: result.errors || null });
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
+
+    const isForbidden =
+      (error instanceof Response && error.status === 403) ||
+      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
+
+    if (isForbidden && session?.shop) {
+      console.warn(`[Auto-Recovery] Function query 403 for ${session.shop}. Purging session and re-authorizing.`);
+      try {
+        if (db) {
+          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+        }
+      } catch (dbErr) {
+        console.error("Failed to purge session on 403:", dbErr);
+      }
+      throw redirect(`/auth?shop=${session.shop}`);
+    }
     
     let errorDetail = "";
     if (error instanceof Response) {
@@ -146,7 +163,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, redirect } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
   const formData = await request.formData();
 
   const method = (formData.get("method") as DiscountMethod) || "code";
@@ -331,6 +348,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect("/app");
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
+
+    const isForbidden =
+      (error instanceof Response && error.status === 403) ||
+      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
+
+    if (isForbidden && session?.shop) {
+      console.warn(`[Auto-Recovery] Action mutation 403 for ${session.shop}. Purging session and re-authorizing.`);
+      try {
+        if (db) {
+          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+        }
+      } catch (dbErr) {
+        console.error("Failed to purge session on 403:", dbErr);
+      }
+      throw redirect(`/auth?shop=${session.shop}`);
+    }
     
     let errorDetail = "";
     if (error instanceof Response) {

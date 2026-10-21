@@ -19,6 +19,7 @@ import {
 import type { CappedDiscountConfig, DiscountMethod } from "~/types/discount";
 import { GET_APP_DISCOUNTS } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
+import { db } from "../db.server";
 
 export interface SerializedDiscountItem {
   id: string;
@@ -71,7 +72,7 @@ function formatDate(isoString: string): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
 
   try {
     const response = await admin.graphql(GET_APP_DISCOUNTS, {
@@ -144,6 +145,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       throw error;
     }
     console.error("Unexpected error in app._index loader:", error);
+
+    const isForbidden =
+      (error instanceof Response && error.status === 403) ||
+      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
+
+    if (isForbidden && session?.shop) {
+      console.warn(`[Auto-Recovery] Access token for ${session.shop} is forbidden. Purging session from database and redirecting to OAuth.`);
+      try {
+        if (db) {
+          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+        }
+      } catch (dbErr) {
+        console.error("Failed to purge session on 403:", dbErr);
+      }
+      throw redirect(`/auth?shop=${session.shop}`);
+    }
 
     let errorMsg = "Failed to load discounts from Shopify Admin.";
     if (error instanceof Response) {
