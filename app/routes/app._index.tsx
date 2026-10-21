@@ -140,11 +140,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return json<LoaderData>({ discounts, error: null });
   } catch (error: any) {
-    if (error instanceof Response) throw error;
+    if (error instanceof Response && error.status >= 300 && error.status < 400) {
+      throw error;
+    }
     console.error("Unexpected error in app._index loader:", error);
+
+    let errorMsg = "Failed to load discounts from Shopify Admin.";
+    if (error instanceof Response) {
+      try {
+        const body = await error.clone().json();
+        errorMsg = body?.errors?.message || body?.message || `HTTP ${error.status}: ${error.statusText || "Forbidden"}`;
+      } catch {
+        errorMsg = `HTTP ${error.status}: ${error.statusText || "Access Forbidden"}`;
+      }
+    } else if (error?.message) {
+      errorMsg = error.message;
+    }
+
     return json<LoaderData>({
       discounts: [],
-      error: error?.message || "Failed to load discounts from Shopify Admin",
+      error: errorMsg,
     });
   }
 };

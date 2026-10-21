@@ -205,7 +205,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       },
     });
   } catch (error: any) {
-    if (error instanceof Response) throw error;
+    if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
     console.error("Unexpected error in discounts.$id loader:", error);
     throw new Response(error?.message || "Failed to load discount node", { status: 500 });
   }
@@ -532,7 +532,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       message: "Discount configuration updated successfully.",
     });
   } catch (error: any) {
-    if (error instanceof Response) throw error;
+    if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
     console.error("Error executing discount update mutation:", error);
     return json<ActionData>(
       { errors: [error?.message || "Failed to update discount on Shopify."] },

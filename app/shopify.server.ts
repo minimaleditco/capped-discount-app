@@ -15,9 +15,6 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new SqliteSessionStorage(),
   distribution: AppDistribution.AppStore,
-  future: {
-    unstable_newEmbeddedAuthStrategy: true,
-  },
 });
 
 export default shopify;

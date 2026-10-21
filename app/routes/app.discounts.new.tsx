@@ -120,7 +120,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return json({ functionId, availableFunctions: functions, queryErrors: result.errors || null });
   } catch (error: any) {
-    if (error instanceof Response) throw error;
+    if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
     console.error("Error fetching function ID in discounts.new loader:", error);
     return json({ functionId: "", availableFunctions: [], queryErrors: [error?.message || "Failed to query functions"] });
   }
@@ -318,7 +318,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return redirect("/app");
   } catch (error: any) {
-    if (error instanceof Response) throw error;
+    if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
     console.error("Error executing discount creation mutation:", error);
     const errorMsg =
       error?.message ||
