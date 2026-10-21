@@ -1,9 +1,12 @@
-name = "Capped Discount App"
-client_id = "ba81420d6a010b4a47c085539bdc9675"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "Capped Discount & COD Fee"
+client_id = "2c334cb8162a93e88de39958c51ff783"
 application_url = "https://capped-discount-app.onrender.com"
 embedded = true
 
 [access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_discounts,read_discounts"
 
 [auth]
