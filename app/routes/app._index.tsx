@@ -140,6 +140,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return json<LoaderData>({ discounts, error: null });
   } catch (error: any) {
+    if (error instanceof Response) throw error;
     console.error("Unexpected error in app._index loader:", error);
     return json<LoaderData>({
       discounts: [],

@@ -9,6 +9,7 @@ import {
   ScrollRestoration,
   useLoaderData,
   useRouteError,
+  isRouteErrorResponse,
 } from "@remix-run/react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
@@ -53,6 +54,14 @@ export default function App() {
 export function ErrorBoundary() {
   const error: any = useRouteError();
   console.error("Root ErrorBoundary caught error:", error);
+
+  let message = "An unexpected error occurred.";
+  if (isRouteErrorResponse(error)) {
+    message = `${error.status} ${error.statusText}: ${typeof error.data === "string" ? error.data : JSON.stringify(error.data)}`;
+  } else if (error instanceof Error) {
+    message = error.message;
+  }
+
   return (
     <html lang="en">
       <head>
@@ -62,7 +71,7 @@ export function ErrorBoundary() {
       </head>
       <body style={{ fontFamily: "sans-serif", padding: "2rem" }}>
         <h2>Application Error</h2>
-        <p>{error?.message || error?.statusText || "An unexpected error occurred."}</p>
+        <p>{message}</p>
       </body>
     </html>
   );
