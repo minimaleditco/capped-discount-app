@@ -105,6 +105,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const response = await admin.graphql(GET_FUNCTION_ID);
     const result = await response.json();
 
+    if (result.errors && result.errors.length > 0) {
+      console.error("GraphQL errors in GET_FUNCTION_ID:", result.errors);
+    }
+
     const functions = result.data?.shopifyFunctions?.nodes || [];
     const discountFunction = functions.find(
       (fn: any) =>
@@ -114,10 +118,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const functionId = discountFunction?.id || "";
 
-    return json({ functionId, availableFunctions: functions });
+    return json({ functionId, availableFunctions: functions, queryErrors: result.errors || null });
   } catch (error: any) {
+    if (error instanceof Response) throw error;
     console.error("Error fetching function ID in discounts.new loader:", error);
-    return json({ functionId: "", availableFunctions: [] });
+    return json({ functionId: "", availableFunctions: [], queryErrors: [error?.message || "Failed to query functions"] });
   }
 };
 
@@ -139,6 +144,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const combinesWithProductDiscounts = formData.get("combinesWithProductDiscounts") === "true";
   const combinesWithShippingDiscounts = formData.get("combinesWithShippingDiscounts") === "true";
   const functionId = (formData.get("functionId") as string)?.trim() || "";
+
+  if (!functionId) {
+    return json<ActionData>(
+      {
+        errors: [
+          "No Shopify Function is linked to this store. Because a new version was deployed to your Partner account, please reinstall or update the app on your test store from your Partner Dashboard so the Function extension is connected.",
+        ],
+      },
+      { status: 400 }
+    );
+  }
 
   const fieldErrors: Record<string, string> = {};
 
@@ -302,9 +318,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return redirect("/app");
   } catch (error: any) {
+    if (error instanceof Response) throw error;
     console.error("Error executing discount creation mutation:", error);
+    const errorMsg =
+      error?.message ||
+      (typeof error === "string"
+        ? error
+        : "Failed to create discount on Shopify. Please ensure the app has been updated or reinstalled on your test store.");
     return json<ActionData>(
-      { errors: [error?.message || "Failed to create discount on Shopify."] },
+      { errors: [errorMsg] },
       { status: 500 }
     );
   }
@@ -380,6 +402,13 @@ export default function CreateDiscountRoute() {
 
   const handleSubmit = useCallback(() => {
     const errors: Record<string, string> = {};
+
+    if (!functionId) {
+      setClientErrors({
+        title: "No Shopify Function extension is linked to this store. Please reinstall the app on your test store from the Partner Dashboard to connect the Function.",
+      });
+      return;
+    }
 
     if (!title.trim()) {
       errors.title = "Discount title is required.";

@@ -532,6 +532,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       message: "Discount configuration updated successfully.",
     });
   } catch (error: any) {
+    if (error instanceof Response) throw error;
     console.error("Error executing discount update mutation:", error);
     return json<ActionData>(
       { errors: [error?.message || "Failed to update discount on Shopify."] },

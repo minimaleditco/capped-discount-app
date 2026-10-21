@@ -7,7 +7,7 @@ import {
 import { SqliteSessionStorage } from "./db.server";
 
 const shopify = shopifyApp({
-  apiKey: process.env.SHOPIFY_API_KEY || "ba81420d6a010b4a47c085539bdc9675",
+  apiKey: process.env.SHOPIFY_API_KEY || "2c334cb8162a93e88de39958c51ff783",
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ("2026-01" as any),
   scopes: process.env.SCOPES?.split(",") || ["write_discounts", "read_discounts"],
