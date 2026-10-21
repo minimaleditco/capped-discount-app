@@ -5,9 +5,45 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { db } from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
+
+  try {
+    const scopeCheck = await admin.graphql(`
+      query CheckScopes {
+        currentAppInstallation {
+          accessScopes {
+            handle
+          }
+        }
+      }
+    `);
+    const scopeData: any = await scopeCheck.json();
+    const activeHandles: string[] = scopeData.data?.currentAppInstallation?.accessScopes?.map(
+      (s: any) => s.handle
+    ) || [];
+
+    if (activeHandles.length > 0 && !activeHandles.includes("write_discounts") && session?.shop) {
+      console.warn(`[Scope Check] Store ${session.shop} token missing write_discounts (has: ${activeHandles.join(",")}). Purging session and re-authorizing.`);
+      if (db) {
+        db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+      }
+      throw redirect(`/auth?shop=${session.shop}`);
+    }
+  } catch (error: any) {
+    if (error instanceof Response) throw error;
+    const isForbidden =
+      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
+    if (isForbidden && session?.shop) {
+      console.warn(`[Scope Check 403] Token forbidden for ${session.shop}. Purging and re-authorizing.`);
+      if (db) {
+        db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+      }
+      throw redirect(`/auth?shop=${session.shop}`);
+    }
+  }
 
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "2c334cb8162a93e88de39958c51ff783" });
 };
