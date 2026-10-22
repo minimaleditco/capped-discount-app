@@ -35,6 +35,37 @@ if (DatabaseSync) {
         data TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_shopify_sessions_shop ON shopify_sessions(shop);
+
+      CREATE TABLE IF NOT EXISTS partial_cod_settings (
+        shop TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        depositType TEXT NOT NULL DEFAULT 'percentage',
+        depositValue REAL NOT NULL DEFAULT 10,
+        minOrderSubtotal REAL NOT NULL DEFAULT 0,
+        gateway TEXT NOT NULL DEFAULT 'simulator',
+        apiKey TEXT DEFAULT '',
+        apiSecret TEXT DEFAULT '',
+        autoCancelMinutes INTEGER NOT NULL DEFAULT 30,
+        updatedAt INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS partial_cod_deposits (
+        id TEXT PRIMARY KEY,
+        shop TEXT NOT NULL,
+        orderId TEXT NOT NULL,
+        orderName TEXT NOT NULL,
+        totalAmount REAL NOT NULL,
+        depositAmount REAL NOT NULL,
+        remainingBalance REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'INR',
+        status TEXT NOT NULL DEFAULT 'pending',
+        gateway TEXT NOT NULL DEFAULT 'simulator',
+        gatewayTransactionId TEXT,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_partial_cod_deposits_shop ON partial_cod_deposits(shop);
+      CREATE INDEX IF NOT EXISTS idx_partial_cod_deposits_order ON partial_cod_deposits(orderId);
     `);
     try {
       dbInstance.exec("DELETE FROM shopify_sessions WHERE expires IS NULL OR accessToken LIKE 'shpat_f029%' OR scope NOT LIKE '%write_discounts%';");
@@ -169,5 +200,250 @@ export class SqliteSessionStorage implements SessionStorage {
       console.error("Error finding sessions by shop:", error);
       return [];
     }
+  }
+}
+
+export interface PartialCodSettings {
+  shop: string;
+  enabled: boolean;
+  depositType: "fixed" | "percentage";
+  depositValue: number;
+  minOrderSubtotal: number;
+  gateway: "simulator" | "razorpay" | "stripe" | "cashfree";
+  apiKey: string;
+  apiSecret: string;
+  autoCancelMinutes: number;
+  updatedAt: number;
+}
+
+export interface PartialCodDepositRecord {
+  id: string;
+  shop: string;
+  orderId: string;
+  orderName: string;
+  totalAmount: number;
+  depositAmount: number;
+  remainingBalance: number;
+  currency: string;
+  status: "pending" | "paid" | "failed" | "cancelled";
+  gateway: string;
+  gatewayTransactionId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+const memorySettings = new Map<string, PartialCodSettings>();
+const memoryDeposits = new Map<string, PartialCodDepositRecord>();
+
+export function getPartialCodSettings(shop: string): PartialCodSettings {
+  const defaultSettings: PartialCodSettings = {
+    shop,
+    enabled: false,
+    depositType: "percentage",
+    depositValue: 10,
+    minOrderSubtotal: 0,
+    gateway: "simulator",
+    apiKey: "",
+    apiSecret: "",
+    autoCancelMinutes: 30,
+    updatedAt: Date.now(),
+  };
+
+  if (!dbInstance) {
+    return memorySettings.get(shop) || defaultSettings;
+  }
+
+  try {
+    const row = dbInstance.prepare("SELECT * FROM partial_cod_settings WHERE shop = ?").get(shop) as any;
+    if (!row) return defaultSettings;
+    return {
+      shop: row.shop,
+      enabled: Boolean(row.enabled),
+      depositType: row.depositType,
+      depositValue: Number(row.depositValue),
+      minOrderSubtotal: Number(row.minOrderSubtotal),
+      gateway: row.gateway,
+      apiKey: row.apiKey || "",
+      apiSecret: row.apiSecret || "",
+      autoCancelMinutes: Number(row.autoCancelMinutes),
+      updatedAt: Number(row.updatedAt),
+    };
+  } catch (err) {
+    console.error("Error reading partial_cod_settings:", err);
+    return defaultSettings;
+  }
+}
+
+export function savePartialCodSettings(settings: PartialCodSettings): boolean {
+  if (!dbInstance) {
+    memorySettings.set(settings.shop, settings);
+    return true;
+  }
+
+  try {
+    const stmt = dbInstance.prepare(`
+      INSERT INTO partial_cod_settings (shop, enabled, depositType, depositValue, minOrderSubtotal, gateway, apiKey, apiSecret, autoCancelMinutes, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(shop) DO UPDATE SET
+        enabled=excluded.enabled,
+        depositType=excluded.depositType,
+        depositValue=excluded.depositValue,
+        minOrderSubtotal=excluded.minOrderSubtotal,
+        gateway=excluded.gateway,
+        apiKey=excluded.apiKey,
+        apiSecret=excluded.apiSecret,
+        autoCancelMinutes=excluded.autoCancelMinutes,
+        updatedAt=excluded.updatedAt
+    `);
+    stmt.run(
+      settings.shop,
+      settings.enabled ? 1 : 0,
+      settings.depositType,
+      settings.depositValue,
+      settings.minOrderSubtotal,
+      settings.gateway,
+      settings.apiKey,
+      settings.apiSecret,
+      settings.autoCancelMinutes,
+      Date.now()
+    );
+    return true;
+  } catch (err) {
+    console.error("Error saving partial_cod_settings:", err);
+    return false;
+  }
+}
+
+export function getDepositsByShop(shop: string, limit = 20): PartialCodDepositRecord[] {
+  if (!dbInstance) {
+    return Array.from(memoryDeposits.values())
+      .filter((d) => d.shop === shop)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limit);
+  }
+
+  try {
+    const rows = dbInstance
+      .prepare("SELECT * FROM partial_cod_deposits WHERE shop = ? ORDER BY createdAt DESC LIMIT ?")
+      .all(shop, limit) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      shop: r.shop,
+      orderId: r.orderId,
+      orderName: r.orderName,
+      totalAmount: Number(r.totalAmount),
+      depositAmount: Number(r.depositAmount),
+      remainingBalance: Number(r.remainingBalance),
+      currency: r.currency || "INR",
+      status: r.status,
+      gateway: r.gateway,
+      gatewayTransactionId: r.gatewayTransactionId || undefined,
+      createdAt: Number(r.createdAt),
+      updatedAt: Number(r.updatedAt),
+    }));
+  } catch (err) {
+    console.error("Error reading partial_cod_deposits:", err);
+    return [];
+  }
+}
+
+export function getDepositById(id: string): PartialCodDepositRecord | null {
+  if (!dbInstance) {
+    return memoryDeposits.get(id) || null;
+  }
+
+  try {
+    const row = dbInstance.prepare("SELECT * FROM partial_cod_deposits WHERE id = ?").get(id) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      shop: row.shop,
+      orderId: row.orderId,
+      orderName: row.orderName,
+      totalAmount: Number(row.totalAmount),
+      depositAmount: Number(row.depositAmount),
+      remainingBalance: Number(row.remainingBalance),
+      currency: row.currency || "INR",
+      status: row.status,
+      gateway: row.gateway,
+      gatewayTransactionId: row.gatewayTransactionId || undefined,
+      createdAt: Number(row.createdAt),
+      updatedAt: Number(row.updatedAt),
+    };
+  } catch (err) {
+    console.error("Error reading deposit by id:", err);
+    return null;
+  }
+}
+
+export function getDepositByOrderId(shop: string, orderId: string): PartialCodDepositRecord | null {
+  if (!dbInstance) {
+    return (
+      Array.from(memoryDeposits.values()).find(
+        (d) => d.shop === shop && d.orderId === orderId
+      ) || null
+    );
+  }
+
+  try {
+    const row = dbInstance
+      .prepare("SELECT * FROM partial_cod_deposits WHERE shop = ? AND orderId = ?")
+      .get(shop, orderId) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      shop: row.shop,
+      orderId: row.orderId,
+      orderName: row.orderName,
+      totalAmount: Number(row.totalAmount),
+      depositAmount: Number(row.depositAmount),
+      remainingBalance: Number(row.remainingBalance),
+      currency: row.currency || "INR",
+      status: row.status,
+      gateway: row.gateway,
+      gatewayTransactionId: row.gatewayTransactionId || undefined,
+      createdAt: Number(row.createdAt),
+      updatedAt: Number(row.updatedAt),
+    };
+  } catch (err) {
+    console.error("Error reading deposit by orderId:", err);
+    return null;
+  }
+}
+
+export function saveDeposit(deposit: PartialCodDepositRecord): boolean {
+  if (!dbInstance) {
+    memoryDeposits.set(deposit.id, deposit);
+    return true;
+  }
+
+  try {
+    const stmt = dbInstance.prepare(`
+      INSERT INTO partial_cod_deposits (id, shop, orderId, orderName, totalAmount, depositAmount, remainingBalance, currency, status, gateway, gatewayTransactionId, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status=excluded.status,
+        gatewayTransactionId=excluded.gatewayTransactionId,
+        updatedAt=excluded.updatedAt
+    `);
+    stmt.run(
+      deposit.id,
+      deposit.shop,
+      deposit.orderId,
+      deposit.orderName,
+      deposit.totalAmount,
+      deposit.depositAmount,
+      deposit.remainingBalance,
+      deposit.currency || "INR",
+      deposit.status,
+      deposit.gateway,
+      deposit.gatewayTransactionId || null,
+      deposit.createdAt,
+      deposit.updatedAt
+    );
+    return true;
+  } catch (err) {
+    console.error("Error saving partial_cod_deposits:", err);
+    return false;
   }
 }
