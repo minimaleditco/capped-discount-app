@@ -238,7 +238,7 @@ const memoryDeposits = new Map<string, PartialCodDepositRecord>();
 export function getPartialCodSettings(shop: string): PartialCodSettings {
   const defaultSettings: PartialCodSettings = {
     shop,
-    enabled: false,
+    enabled: true,
     depositType: "percentage",
     depositValue: 10,
     minOrderSubtotal: 0,
