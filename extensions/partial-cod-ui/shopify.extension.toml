@@ -1,0 +1,18 @@
+api_version = "2026-10"
+
+[[extensions]]
+name = "partial-cod-ui"
+handle = "partial-cod-ui"
+type = "ui_extension"
+uid = "9dcd6a0c-b34f-c5aa-3364-786f900849b94bbc0b6c"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.block.render"
+
+[[extensions.targeting]]
+module = "./src/ThankYou.jsx"
+target = "purchase.thank-you.block.render"
+
+[extensions.capabilities]
+api_access = true
