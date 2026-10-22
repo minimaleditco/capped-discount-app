@@ -32,11 +32,28 @@ async function handlePayRequest(request: Request) {
     }
   }
 
-  if (!shop || !orderId) {
-    return json({ success: false, error: "Missing required parameters: shop and order_id" }, { status: 400 });
+  if (!shop) {
+    return json({ success: false, error: "Missing required parameter: shop" }, { status: 400 });
   }
 
   const settings = getPartialCodSettings(shop);
+
+  if (orderId === "preview" || !orderId) {
+    return json({
+      success: true,
+      settings: {
+        enabled: settings.enabled,
+        depositType: settings.depositType,
+        depositValue: settings.depositValue,
+        gateway: settings.gateway,
+      },
+    }, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
+
   if (!settings.enabled) {
     return json({ success: false, error: "Partial COD is not enabled on this store" }, { status: 400 });
   }
