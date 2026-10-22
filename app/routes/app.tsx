@@ -35,6 +35,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
     console.warn("Scope check failed or store forbidden:", error?.message || error);
+    if (db && session?.shop) {
+      const isForbidden =
+        (error instanceof Response && (error.status === 401 || error.status === 403)) ||
+        (typeof error?.message === "string" && (error.message.includes("403") || error.message.includes("Forbidden") || error.message.includes("401")));
+      if (isForbidden) {
+        try {
+          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+        } catch {}
+      }
+    }
   }
 
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "2c334cb8162a93e88de39958c51ff783" });

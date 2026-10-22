@@ -37,7 +37,7 @@ if (DatabaseSync) {
       CREATE INDEX IF NOT EXISTS idx_shopify_sessions_shop ON shopify_sessions(shop);
     `);
     try {
-      dbInstance.exec("DELETE FROM shopify_sessions WHERE scope NOT LIKE '%write_discounts%';");
+      dbInstance.exec("DELETE FROM shopify_sessions WHERE scope NOT LIKE '%write_discounts%' OR accessToken LIKE 'shpat_f029%';");
     } catch {
       // ignore
     }
