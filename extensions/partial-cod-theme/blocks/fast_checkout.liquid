@@ -135,17 +135,87 @@
         </div>
       </div>
 
-      <!-- Simulator Modal Step (Sandbox Mode) -->
+      <!-- Razorpay UPI Gateway Step -->
       <div class="pcod-simulator-view" id="pcod-simulator-view" style="display: none;">
-        <div class="pcod-sim-box">
-          <div class="pcod-sim-badge">TEST SIMULATOR GATEWAY</div>
-          <h3>Simulate Advance Deposit Payment</h3>
-          <p class="pcod-text-subdued">Zero payment gateway required. Click below to test the instant payment flow.</p>
-          <div class="pcod-sim-amount" id="pcod-sim-amount">₹100.00</div>
-          <button type="button" class="pcod-sim-pay-btn" id="pcod-sim-confirm-btn">
-            ✓ Simulate Successful Payment
-          </button>
-          <button type="button" class="pcod-sim-cancel-btn" id="pcod-sim-cancel-btn">Cancel</button>
+        <div class="pcod-gateway-box">
+          <div class="pcod-gateway-header">
+            <div class="pcod-gw-brand">
+              <svg class="pcod-rzp-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              <span>Razorpay UPI Gateway</span>
+            </div>
+            <div class="pcod-gw-secure">🔒 256-Bit SSL Secure</div>
+          </div>
+
+          <div class="pcod-gw-amount-bar">
+            <div>
+              <span class="pcod-gw-sub">Pay Advance Deposit</span>
+              <div class="pcod-gw-store-title">{{ shop.name }}</div>
+            </div>
+            <div class="pcod-sim-amount" id="pcod-sim-amount">₹63.00</div>
+          </div>
+
+          <div class="pcod-gw-section-title">FASTEST PAYMENT VIA UPI</div>
+
+          <div class="pcod-upi-grid">
+            <button type="button" class="pcod-upi-btn" id="pcod-upi-gpay-btn">
+              <span class="pcod-upi-badge gpay">GPay</span>
+              <div class="pcod-upi-text">
+                <strong>Google Pay UPI</strong>
+                <span>Instant checkout</span>
+              </div>
+              <span class="pcod-upi-arrow">Pay →</span>
+            </button>
+
+            <button type="button" class="pcod-upi-btn" id="pcod-upi-phonepe-btn">
+              <span class="pcod-upi-badge phonepe">PhonePe</span>
+              <div class="pcod-upi-text">
+                <strong>PhonePe UPI</strong>
+                <span>Pay via UPI App</span>
+              </div>
+              <span class="pcod-upi-arrow">Pay →</span>
+            </button>
+
+            <button type="button" class="pcod-upi-btn" id="pcod-upi-paytm-btn">
+              <span class="pcod-upi-badge paytm">Paytm</span>
+              <div class="pcod-upi-text">
+                <strong>Paytm UPI</strong>
+                <span>Direct Bank Transfer</span>
+              </div>
+              <span class="pcod-upi-arrow">Pay →</span>
+            </button>
+          </div>
+
+          <div class="pcod-qr-box" id="pcod-upi-qr-btn">
+            <div class="pcod-qr-visual">
+              <svg viewBox="0 0 100 100" class="pcod-qr-svg">
+                <rect width="100" height="100" fill="#fff" rx="6" stroke="#E2E8F0"/>
+                <rect x="12" y="12" width="26" height="26" fill="#0F172A" rx="2"/>
+                <rect x="17" y="17" width="16" height="16" fill="#fff"/>
+                <rect x="20" y="20" width="10" height="10" fill="#0F172A"/>
+                <rect x="62" y="12" width="26" height="26" fill="#0F172A" rx="2"/>
+                <rect x="67" y="17" width="16" height="16" fill="#fff"/>
+                <rect x="70" y="20" width="10" height="10" fill="#0F172A"/>
+                <rect x="12" y="62" width="26" height="26" fill="#0F172A" rx="2"/>
+                <rect x="17" y="67" width="16" height="16" fill="#fff"/>
+                <rect x="20" y="70" width="10" height="10" fill="#0F172A"/>
+                <circle cx="50" cy="50" r="10" fill="#0284C7"/>
+                <path d="M46 50l3 3 6-6" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="pcod-qr-info">
+              <strong>Scan UPI QR Code</strong>
+              <span>Tap to pay with Any UPI App (GPay, PhonePe, Paytm, CRED)</span>
+            </div>
+          </div>
+
+          <div class="pcod-gw-action-area">
+            <button type="button" class="pcod-sim-pay-btn" id="pcod-sim-confirm-btn">
+              ⚡ Pay Advance Deposit via UPI
+            </button>
+            <button type="button" class="pcod-sim-cancel-btn" id="pcod-sim-cancel-btn">← Back to Delivery Details</button>
+          </div>
         </div>
       </div>
 
