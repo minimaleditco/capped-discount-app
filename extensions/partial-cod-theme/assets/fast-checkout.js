@@ -1,1 +1,361 @@
-(function(){const U="https://capped-discount-app.onrender.com";let d=null,p=null;const $=id=>document.getElementById(id);document.addEventListener("DOMContentLoaded",init);if(document.readyState==="interactive"||document.readyState==="complete")init();function init(){const b=$("pcod-fast-buy-btn"),m=$("pcod-modal-backdrop"),c=$("pcod-close-modal-btn"),s=$("pcod-submit-payment-btn"),simC=$("pcod-sim-confirm-btn"),simX=$("pcod-sim-cancel-btn"),done=$("pcod-view-receipt-btn");if(!b||!m)return;b.addEventListener("click",e=>{e.preventDefault();open();});if(c)c.addEventListener("click",close);m.addEventListener("click",e=>{if(e.target===m)close();});if(s)s.addEventListener("click",pay);if(simC)simC.addEventListener("click",simConfirm);if(simX)simX.addEventListener("click",()=>view("checkout"));if(done)done.addEventListener("click",()=>{close();window.location.reload();});}function open(){const b=$("pcod-fast-buy-btn"),m=$("pcod-modal-backdrop");if(!b||!m)return;let v=b.getAttribute("data-variant-id");const vi=document.querySelector('form[action*="/cart/add"] [name="id"], form[action*="/cart/add"] select[name="id"]');if(vi&&vi.value)v=vi.value;p={productId:b.getAttribute("data-product-id"),variantId:v,title:b.getAttribute("data-product-title"),price:parseFloat(b.getAttribute("data-product-price")||"0"),image:b.getAttribute("data-product-image"),shop:b.getAttribute("data-shop")};m.style.display="flex";view("loading");err();fetch(`${U}/api/partial-cod/fast-checkout/init`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shop:p.shop,items:[{variantId:p.variantId,title:p.title,price:p.price,quantity:1,imageUrl:p.image}]})}).then(r=>r.json()).then(res=>{if(!res.success){err(res.error||"Failed to load settings.");view("checkout");return;}d=res;render(res);view("checkout");if(typeof window.fbq==="function")window.fbq("track","InitiateCheckout",{value:res.total,currency:"INR",content_name:p.title});}).catch(()=>{err("Unable to initialize checkout.");view("checkout");});}function render(data){const img=$("pcod-product-img"),name=$("pcod-product-name"),pr=$("pcod-product-price"),tot=$("pcod-summary-total"),dep=$("pcod-summary-deposit"),bal=$("pcod-summary-balance"),bt=$("pcod-submit-btn-text"),sa=$("pcod-sim-amount");if(img&&p.image)img.src=p.image;if(name)name.textContent=p.title;if(pr)pr.textContent=`₹${p.price.toLocaleString("en-IN")}`;if(tot)tot.textContent=`₹${data.total.toLocaleString("en-IN")}`;if(dep)dep.textContent=`₹${data.deposit.toLocaleString("en-IN")}`;if(bal)bal.textContent=`₹${data.balance.toLocaleString("en-IN")}`;if(bt)bt.textContent=`Pay ₹${data.deposit.toLocaleString("en-IN")} Advance Deposit & Confirm Order →`;if(sa)sa.textContent=`₹${data.deposit.toFixed(2)}`;}function pay(){err();const ph=$("pcod-input-phone")?.value.trim(),n=$("pcod-input-name")?.value.trim(),a=$("pcod-input-address")?.value.trim(),c=$("pcod-input-city")?.value.trim(),z=$("pcod-input-zip")?.value.trim();if(!ph||ph.length<10)return err("Please enter a valid 10-digit mobile number.");if(!n||n.length<2)return err("Please enter your full name.");if(!a||a.length<5)return err("Please enter your complete street address.");if(!c)return err("Please enter your city.");if(!z||z.length<6)return err("Please enter a valid 6-digit PIN code.");const gw=d?.gateway||"simulator";if(gw==="razorpay"){rzp();}else{view("simulator");}}function simConfirm(){const b=$("pcod-sim-confirm-btn");if(b){b.disabled=true;b.textContent="Processing...";}finalize({gateway:"simulator",paymentId:`sim_pay_${Date.now()}`,orderId:d.gatewayOrderId,signature:"sim_verified"});}function rzp(){if(typeof window.Razorpay==="undefined"){const s=document.createElement("script");s.src="https://checkout.razorpay.com/v1/checkout.js";s.onload=()=>runRzp();document.head.appendChild(s);}else{runRzp();}}function runRzp(){const ph=$("pcod-input-phone")?.value.trim(),n=$("pcod-input-name")?.value.trim();const opts={key:d.keyId,amount:d.deposit*100,currency:"INR",name:p.shop,description:`Advance Deposit for ${p.title}`,order_id:d.gatewayOrderId,prefill:{name:n,contact:ph},handler:r=>{finalize({gateway:"razorpay",paymentId:r.razorpay_payment_id,orderId:r.razorpay_order_id,signature:r.razorpay_signature});},theme:{color:"#0F172A"}};new window.Razorpay(opts).open();}function finalize(pm){view("loading");const ph=$("pcod-input-phone")?.value.trim(),n=$("pcod-input-name")?.value.trim(),a=$("pcod-input-address")?.value.trim(),c=$("pcod-input-city")?.value.trim(),z=$("pcod-input-zip")?.value.trim();const parts=n.split(" "),fn=parts[0]||n,ln=parts.slice(1).join(" ")||"";fetch(`${U}/api/partial-cod/fast-checkout/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shop:p.shop,paymentDetails:pm,orderDetails:{items:[{variantId:p.variantId,title:p.title,price:String(p.price),quantity:1}],customer:{firstName:fn,lastName:ln,phone:`+91${ph}`,email:`${ph}@customer.shopify`},shippingAddress:{firstName:fn,lastName:ln,address1:a,city:c,province:"Delhi",country:"India",zip:z,phone:`+91${ph}`},total:d.total,deposit:d.deposit,balance:d.balance,currency:"INR"}})}).then(r=>r.json()).then(res=>{if(!res.success){err(res.error||"Failed to confirm order.");view("checkout");return;}const on=$("pcod-success-order-name"),rd=$("pcod-receipt-deposit"),rb=$("pcod-receipt-balance");if(on)on.textContent=res.orderName||"Order Confirmed";if(rd)rd.textContent=`₹${res.depositAmount.toLocaleString("en-IN")}`;if(rb)rb.textContent=`₹${res.remainingBalance.toLocaleString("en-IN")}`;view("success");if(typeof window.fbq==="function")window.fbq("track","Purchase",{value:d.total,currency:"INR",content_name:p.title});if(typeof window.gtag==="function")window.gtag("event","purchase",{transaction_id:res.orderName,value:d.total,currency:"INR"});}).catch(()=>{err("Unexpected error while placing order.");view("checkout");});}function view(n){const l=$("pcod-loading-view"),c=$("pcod-checkout-view"),s=$("pcod-simulator-view"),sc=$("pcod-success-view");if(l)l.style.display=n==="loading"?"block":"none";if(c)c.style.display=n==="checkout"?"block":"none";if(s)s.style.display=n==="simulator"?"block":"none";if(sc)sc.style.display=n==="success"?"block":"none";}function err(m){const e=$("pcod-error-banner");if(!e)return;if(!m){e.textContent="";e.style.display="none";}else{e.textContent=m;e.style.display="block";}}function close(){const m=$("pcod-modal-backdrop");if(m)m.style.display="none";}})();
+(function () {
+  const BACKEND_URL = "https://capped-discount-app.onrender.com";
+  let sessionData = null;
+  let productData = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === "interactive" || document.readyState === "complete") {
+    init();
+  }
+
+  function init() {
+    const buyBtn = $("pcod-fast-buy-btn");
+    const backdrop = $("pcod-modal-backdrop");
+    const closeBtn = $("pcod-close-modal-btn");
+    const submitBtn = $("pcod-submit-payment-btn");
+    const simConfirmBtn = $("pcod-sim-confirm-btn");
+    const simCancelBtn = $("pcod-sim-cancel-btn");
+    const receiptDoneBtn = $("pcod-view-receipt-btn");
+
+    if (!buyBtn || !backdrop) return;
+
+    buyBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      openCheckout();
+    });
+
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    backdrop.addEventListener("click", function (e) {
+      if (e.target === backdrop) closeModal();
+    });
+
+    if (submitBtn) submitBtn.addEventListener("click", handlePaymentSubmit);
+    if (simConfirmBtn) simConfirmBtn.addEventListener("click", handleSimulatorConfirm);
+    if (simCancelBtn) simCancelBtn.addEventListener("click", function () {
+      resetSimulatorBtn();
+      switchView("checkout");
+    });
+    if (receiptDoneBtn) receiptDoneBtn.addEventListener("click", function () {
+      closeModal();
+      window.location.reload();
+    });
+  }
+
+  function openCheckout() {
+    const buyBtn = $("pcod-fast-buy-btn");
+    const backdrop = $("pcod-modal-backdrop");
+    if (!buyBtn || !backdrop) return;
+
+    let variantId = buyBtn.getAttribute("data-variant-id");
+    const variantInput = document.querySelector(
+      'form[action*="/cart/add"] [name="id"], form[action*="/cart/add"] select[name="id"]'
+    );
+    if (variantInput && variantInput.value) {
+      variantId = variantInput.value;
+    }
+
+    productData = {
+      productId: buyBtn.getAttribute("data-product-id"),
+      variantId: variantId,
+      title: buyBtn.getAttribute("data-product-title") || "Product",
+      price: parseFloat(buyBtn.getAttribute("data-product-price") || "0"),
+      image: buyBtn.getAttribute("data-product-image"),
+      shop: buyBtn.getAttribute("data-shop"),
+    };
+
+    backdrop.style.display = "flex";
+    switchView("loading");
+    showError();
+
+    fetch(`${BACKEND_URL}/api/partial-cod/fast-checkout/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shop: productData.shop,
+        items: [
+          {
+            variantId: productData.variantId,
+            title: productData.title,
+            price: productData.price,
+            quantity: 1,
+            imageUrl: productData.image,
+          },
+        ],
+      }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.success) {
+          showError(res.error || "Failed to load checkout rules.");
+          switchView("checkout");
+          return;
+        }
+        sessionData = res;
+        renderSummary(res);
+        switchView("checkout");
+
+        if (typeof window.fbq === "function") {
+          window.fbq("track", "InitiateCheckout", {
+            value: res.total,
+            currency: "INR",
+            content_name: productData.title,
+          });
+        }
+      })
+      .catch((e) => {
+        showError("Unable to connect to checkout service. Please check connection.");
+        switchView("checkout");
+      });
+  }
+
+  function renderSummary(data) {
+    const img = $("pcod-product-img");
+    const name = $("pcod-product-name");
+    const pr = $("pcod-product-price");
+    const tot = $("pcod-summary-total");
+    const dep = $("pcod-summary-deposit");
+    const bal = $("pcod-summary-balance");
+    const btnText = $("pcod-submit-btn-text");
+    const simAmount = $("pcod-sim-amount");
+
+    if (img && productData.image) img.src = productData.image;
+    if (name) name.textContent = productData.title;
+    if (pr) pr.textContent = `₹${productData.price.toLocaleString("en-IN")}`;
+    if (tot) tot.textContent = `₹${data.total.toLocaleString("en-IN")}`;
+    if (dep) dep.textContent = `₹${data.deposit.toLocaleString("en-IN")}`;
+    if (bal) bal.textContent = `₹${data.balance.toLocaleString("en-IN")}`;
+    if (btnText) btnText.textContent = `Pay ₹${data.deposit.toLocaleString("en-IN")} Advance Deposit & Confirm Order →`;
+    if (simAmount) simAmount.textContent = `₹${data.deposit.toFixed(2)}`;
+  }
+
+  function handlePaymentSubmit() {
+    showError();
+    const phone = $("pcod-input-phone")?.value.trim() || "";
+    const name = $("pcod-input-name")?.value.trim() || "";
+    const address = $("pcod-input-address")?.value.trim() || "";
+    const city = $("pcod-input-city")?.value.trim() || "";
+    const zip = $("pcod-input-zip")?.value.trim() || "";
+
+    if (!phone || phone.length < 10) {
+      return showError("Please enter a valid 10-digit mobile number.");
+    }
+    if (!name || name.length < 2) {
+      return showError("Please enter your full name.");
+    }
+    if (!address || address.length < 5) {
+      return showError("Please enter your complete street address.");
+    }
+    if (!city) {
+      return showError("Please enter your city.");
+    }
+    if (!zip || zip.length < 6) {
+      return showError("Please enter a valid 6-digit PIN code.");
+    }
+
+    const gateway = sessionData?.gateway || "simulator";
+    if (gateway === "razorpay") {
+      openRazorpayGateway();
+    } else {
+      resetSimulatorBtn();
+      switchView("simulator");
+    }
+  }
+
+  function resetSimulatorBtn() {
+    const simBtn = $("pcod-sim-confirm-btn");
+    if (simBtn) {
+      simBtn.disabled = false;
+      simBtn.textContent = "✓ Simulate Successful Payment";
+    }
+  }
+
+  function handleSimulatorConfirm() {
+    const simBtn = $("pcod-sim-confirm-btn");
+    if (simBtn) {
+      simBtn.disabled = true;
+      simBtn.textContent = "Processing order...";
+    }
+    finalizePayment({
+      gateway: "simulator",
+      paymentId: `sim_pay_${Date.now()}`,
+      orderId: sessionData.gatewayOrderId,
+      signature: "sim_verified",
+    });
+  }
+
+  function openRazorpayGateway() {
+    if (typeof window.Razorpay === "undefined") {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => launchRazorpay();
+      document.head.appendChild(script);
+    } else {
+      launchRazorpay();
+    }
+  }
+
+  function launchRazorpay() {
+    const phone = $("pcod-input-phone")?.value.trim() || "";
+    const name = $("pcod-input-name")?.value.trim() || "";
+
+    const options = {
+      key: sessionData.keyId,
+      amount: Math.round(sessionData.deposit * 100),
+      currency: "INR",
+      name: productData.shop,
+      description: `Advance Deposit for ${productData.title}`,
+      order_id: sessionData.gatewayOrderId,
+      prefill: {
+        name: name,
+        contact: phone,
+      },
+      handler: function (response) {
+        finalizePayment({
+          gateway: "razorpay",
+          paymentId: response.razorpay_payment_id,
+          orderId: response.razorpay_order_id,
+          signature: response.razorpay_signature,
+        });
+      },
+      theme: {
+        color: "#0F172A",
+      },
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+  }
+
+  function finalizePayment(paymentInfo) {
+    switchView("loading");
+    showError();
+
+    const phone = $("pcod-input-phone")?.value.trim() || "";
+    const name = $("pcod-input-name")?.value.trim() || "";
+    const address = $("pcod-input-address")?.value.trim() || "";
+    const city = $("pcod-input-city")?.value.trim() || "";
+    const zip = $("pcod-input-zip")?.value.trim() || "";
+
+    const nameParts = name.split(" ").filter(Boolean);
+    const firstName = nameParts[0] || name || "Customer";
+    const lastName = nameParts.slice(1).join(" ") || "Shopper";
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+    const payload = {
+      shop: productData.shop,
+      paymentDetails: paymentInfo,
+      orderDetails: {
+        items: [
+          {
+            variantId: productData.variantId,
+            title: productData.title,
+            price: String(productData.price),
+            quantity: 1,
+          },
+        ],
+        customer: {
+          firstName: firstName,
+          lastName: lastName,
+          phone: `+91${cleanPhone}`,
+          email: `${cleanPhone}@customer.shopify`,
+        },
+        shippingAddress: {
+          firstName: firstName,
+          lastName: lastName,
+          address1: address,
+          city: city,
+          province: "Delhi",
+          zip: zip,
+          phone: `+91${cleanPhone}`,
+        },
+        total: sessionData.total,
+        deposit: sessionData.deposit,
+        balance: sessionData.balance,
+        currency: "INR",
+      },
+    };
+
+    fetch(`${BACKEND_URL}/api/partial-cod/fast-checkout/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(async (r) => {
+        let res;
+        try {
+          res = await r.json();
+        } catch (parseErr) {
+          throw new Error(`Server response error (${r.status})`);
+        }
+        if (!r.ok || !res.success) {
+          throw new Error(res.error || `Failed to create order (${r.status})`);
+        }
+        return res;
+      })
+      .then((res) => {
+        const orderNameElem = $("pcod-success-order-name");
+        const receiptDepositElem = $("pcod-receipt-deposit");
+        const receiptBalanceElem = $("pcod-receipt-balance");
+
+        if (orderNameElem) orderNameElem.textContent = res.orderName || "Order Confirmed";
+        if (receiptDepositElem) receiptDepositElem.textContent = `₹${res.depositAmount.toLocaleString("en-IN")}`;
+        if (receiptBalanceElem) receiptBalanceElem.textContent = `₹${res.remainingBalance.toLocaleString("en-IN")}`;
+
+        switchView("success");
+
+        if (typeof window.fbq === "function") {
+          window.fbq("track", "Purchase", {
+            value: sessionData.total,
+            currency: "INR",
+            content_name: productData.title,
+          });
+        }
+        if (typeof window.gtag === "function") {
+          window.gtag("event", "purchase", {
+            transaction_id: res.orderName,
+            value: sessionData.total,
+            currency: "INR",
+          });
+        }
+      })
+      .catch((errObj) => {
+        console.error("[Partial COD Fast Checkout Error]:", errObj);
+        resetSimulatorBtn();
+        showError(errObj.message || "Failed to confirm order. Please try again.");
+        switchView("checkout");
+      });
+  }
+
+  function switchView(name) {
+    const loadingView = $("pcod-loading-view");
+    const checkoutView = $("pcod-checkout-view");
+    const simulatorView = $("pcod-simulator-view");
+    const successView = $("pcod-success-view");
+
+    if (loadingView) loadingView.style.display = name === "loading" ? "block" : "none";
+    if (checkoutView) checkoutView.style.display = name === "checkout" ? "block" : "none";
+    if (simulatorView) simulatorView.style.display = name === "simulator" ? "block" : "none";
+    if (successView) successView.style.display = name === "success" ? "block" : "none";
+  }
+
+  function showError(msg) {
+    const banner = $("pcod-error-banner");
+    if (!banner) return;
+    if (!msg) {
+      banner.textContent = "";
+      banner.style.display = "none";
+    } else {
+      banner.textContent = msg;
+      banner.style.display = "block";
+    }
+  }
+
+  function closeModal() {
+    const backdrop = $("pcod-modal-backdrop");
+    if (backdrop) backdrop.style.display = "none";
+    resetSimulatorBtn();
+    showError();
+  }
+})();

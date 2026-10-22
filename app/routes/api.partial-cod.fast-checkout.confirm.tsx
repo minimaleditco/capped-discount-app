@@ -58,38 +58,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // 2. Create the Order in Shopify Admin as PARTIALLY_PAID
     const { admin } = await unauthenticated.admin(shop);
 
-    const lineItemsInput = (orderDetails.items || []).map((item: any) => {
-      const lineItem: any = {
-        quantity: Number(item.quantity) || 1,
-      };
-      if (item.variantId && item.variantId.startsWith("gid://shopify/ProductVariant/")) {
-        lineItem.variantId = item.variantId;
-      } else if (item.variantId) {
-        lineItem.variantId = `gid://shopify/ProductVariant/${item.variantId}`;
-      } else {
-        lineItem.title = item.title || "Custom Item";
-        lineItem.price = String(item.price || "100.00");
+    const lineItemsInput: any[] = [];
+    if (Array.isArray(orderDetails.items) && orderDetails.items.length > 0) {
+      for (const item of orderDetails.items) {
+        const lineItem: any = {
+          quantity: Number(item.quantity) || 1,
+        };
+        if (item.variantId && String(item.variantId).startsWith("gid://shopify/ProductVariant/")) {
+          lineItem.variantId = item.variantId;
+        } else if (item.variantId && !isNaN(Number(item.variantId))) {
+          lineItem.variantId = `gid://shopify/ProductVariant/${item.variantId}`;
+        }
+        if (lineItem.variantId) {
+          lineItemsInput.push(lineItem);
+        }
       }
-      return lineItem;
-    });
+    }
+
+    if (lineItemsInput.length === 0) {
+      return json(
+        { success: false, error: "No valid product variant specified for this order." },
+        { status: 400, headers: corsHeaders }
+      );
+    }
 
     const customerInput = {
-      firstName: orderDetails.customer?.firstName || "Customer",
-      lastName: orderDetails.customer?.lastName || "",
-      email: orderDetails.customer?.email || `${orderDetails.customer?.phone || "order"}@customer.placeholder`,
-      phone: orderDetails.customer?.phone || undefined,
+      firstName: (orderDetails.customer?.firstName || "Customer").trim(),
+      lastName: (orderDetails.customer?.lastName || "").trim() || "Shopper",
+      email: orderDetails.customer?.email || `${(orderDetails.customer?.phone || "order").replace(/[^0-9]/g, "") || Date.now()}@customer.placeholder`,
+      phone: orderDetails.customer?.phone ? String(orderDetails.customer.phone).trim() : undefined,
     };
 
-    const shippingAddressInput = {
+    const shippingAddressInput: any = {
       firstName: orderDetails.shippingAddress?.firstName || customerInput.firstName,
-      lastName: orderDetails.shippingAddress?.lastName || customerInput.lastName,
+      lastName: (orderDetails.shippingAddress?.lastName || customerInput.lastName).trim() || "Shopper",
       address1: orderDetails.shippingAddress?.address1 || "Main Street",
       city: orderDetails.shippingAddress?.city || "New Delhi",
       province: orderDetails.shippingAddress?.province || "Delhi",
-      country: orderDetails.shippingAddress?.country || "India",
+      countryCode: "IN",
       zip: orderDetails.shippingAddress?.zip || "110001",
-      phone: orderDetails.shippingAddress?.phone || customerInput.phone,
     };
+    if (customerInput.phone) {
+      shippingAddressInput.phone = customerInput.phone;
+    }
 
     const orderCreateMutation = `#graphql
       mutation OrderCreate($order: OrderCreateOrderInput!) {
@@ -115,17 +126,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const gatewayName = settings.gateway === "razorpay" ? "Razorpay UPI" : "Partial COD (Simulator)";
 
-    const orderPayload = {
+    const orderPayload: any = {
       financialStatus: "PARTIALLY_PAID",
       tags: ["partial-cod-deposit-paid", "partial-cod-fast-checkout"],
       note: `[Partial COD Fast Checkout] ₹${depositAmount} advance deposit paid via ${gatewayName}. Remaining COD balance to collect at doorstep: ₹${balanceAmount}.`,
       lineItems: lineItemsInput,
-      customer: customerInput,
+      email: customerInput.email,
       shippingAddress: shippingAddressInput,
       billingAddress: shippingAddressInput,
       transactions: [
         {
-          kind: "CAPTURE",
+          kind: "SALE",
           status: "SUCCESS",
           gateway: gatewayName,
           amountSet: {
@@ -140,8 +151,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { key: "partial_cod_deposit_paid", value: String(depositAmount) },
         { key: "partial_cod_balance_due", value: String(balanceAmount) },
         { key: "partial_cod_gateway", value: settings.gateway },
+        { key: "customer_phone", value: String(customerInput.phone || "") },
       ],
     };
+
+    if (customerInput.phone && /^\+[1-9]\d{7,14}$/.test(customerInput.phone)) {
+      orderPayload.phone = customerInput.phone;
+    }
 
     const response = await admin.graphql(orderCreateMutation, {
       variables: {
@@ -149,7 +165,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    const responseJson = await response.json();
+    const responseJson: any = await response.json();
+    console.log("[Fast Checkout orderCreate response]:", JSON.stringify(responseJson));
+
+    if (responseJson.errors && responseJson.errors.length > 0) {
+      console.error("[Fast Checkout orderCreate GraphQL Errors]:", responseJson.errors);
+      return json({
+        success: false,
+        error: responseJson.errors.map((e: any) => e.message).join(", "),
+      }, { status: 400, headers: corsHeaders });
+    }
+
     const result = responseJson.data?.orderCreate;
 
     if (result?.userErrors && result.userErrors.length > 0) {
