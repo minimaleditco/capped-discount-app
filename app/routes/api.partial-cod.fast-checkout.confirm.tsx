@@ -56,7 +56,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const currency = orderDetails.currency || "INR";
 
     // 2. Create the Order in Shopify Admin as PARTIALLY_PAID
-    const { admin } = await unauthenticated.admin(shop);
+    let admin: any;
+    try {
+      const authResult = await unauthenticated.admin(shop);
+      admin = authResult.admin;
+    } catch (sessionErr: any) {
+      console.error("[Fast Checkout Session Error]:", sessionErr);
+      return json(
+        {
+          success: false,
+          error: "Store permissions need a quick sync: Please open the 'Capped Discount & COD Fee' app in your Shopify Admin once to authenticate, then place the order again.",
+        },
+        { status: 403, headers: corsHeaders }
+      );
+    }
 
     const lineItemsInput: any[] = [];
     if (Array.isArray(orderDetails.items) && orderDetails.items.length > 0) {
