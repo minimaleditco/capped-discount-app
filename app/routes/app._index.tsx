@@ -73,21 +73,66 @@ function formatDate(isoString: string): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session, redirect } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session?.shop || "";
+  const token = session?.accessToken || "";
 
   try {
-    const response = await admin.graphql(GET_APP_DISCOUNTS, {
-      variables: { first: 50 },
+    const response = await fetch(`https://${shop}/admin/api/2026-01/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({
+        query: GET_APP_DISCOUNTS,
+        variables: { first: 50 },
+      }),
     });
 
-    const result: any = await response.json();
+    const text = await response.text();
+    console.log(`[Discounts Loader] Shopify HTTP ${response.status}:`, text);
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        if (db && shop) {
+          console.warn(`[Auto-Purge] Token returned HTTP ${response.status}. Purging session for ${shop}.`);
+          try {
+            db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(shop);
+          } catch (e) {
+            console.error("Failed to delete stale session:", e);
+          }
+        }
+      }
+
+      let errorMsg = `Shopify API HTTP ${response.status}`;
+      try {
+        const json = JSON.parse(text);
+        errorMsg = typeof json.errors === "string"
+          ? json.errors
+          : (Array.isArray(json.errors)
+              ? json.errors.map((e: any) => e.message || JSON.stringify(e)).join(", ")
+              : (json.errors?.message || json.message || text));
+      } catch {
+        errorMsg = text || `HTTP ${response.status}`;
+      }
+
+      const debugInfo = `[Shop: ${shop} | Scopes: ${session?.scope || "none"} | Token: ${token ? token.substring(0, 10) + "..." : "missing"}]`;
+      return json<LoaderData>({
+        discounts: [],
+        error: `${errorMsg} ${debugInfo}`,
+        shop,
+      });
+    }
+
+    const result = JSON.parse(text);
 
     if (result.errors && result.errors.length > 0) {
       console.error("GraphQL errors fetching app discounts:", result.errors);
       return json<LoaderData>({
         discounts: [],
         error: result.errors.map((e: { message: string }) => e.message).join(", "),
-        shop: session?.shop || "",
+        shop,
       });
     }
 
@@ -141,45 +186,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       };
     });
 
-    return json<LoaderData>({ discounts, error: null, shop: session?.shop || "" });
+    return json<LoaderData>({ discounts, error: null, shop });
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) {
       throw error;
     }
     console.error("Unexpected error in app._index loader:", error);
 
-    let errorDetails = "";
-    const rawResponse = error?.cause?.text
-      ? error.cause
-      : (error?.text ? error : (error?.response?.text ? error.response : null));
-
-    if (rawResponse && typeof rawResponse.text === "function") {
-      try {
-        const text = await rawResponse.clone().text();
-        console.error("Shopify Admin API Response in app._index loader:", rawResponse.status, text);
-        try {
-          const jsonBody = JSON.parse(text);
-          errorDetails = typeof jsonBody?.errors === "string"
-            ? jsonBody.errors
-            : (Array.isArray(jsonBody?.errors)
-                ? jsonBody.errors.map((e: any) => e.message || JSON.stringify(e)).join(", ")
-                : (jsonBody?.errors?.message || jsonBody?.message || text));
-        } catch {
-          errorDetails = text || `HTTP ${rawResponse.status}: ${rawResponse.statusText || "Access Denied"}`;
-        }
-      } catch {
-        errorDetails = `HTTP ${rawResponse?.status || 403}: ${rawResponse?.statusText || "Access Denied"}`;
-      }
-    } else {
-      errorDetails = error?.message || String(error);
-    }
-
-    const debugInfo = `[Shop: ${session?.shop || "unknown"} | Scopes: ${session?.scope || "none"} | Token: ${session?.accessToken ? session.accessToken.substring(0, 10) + "..." : "missing"}]`;
+    const debugInfo = `[Shop: ${shop || "unknown"} | Scopes: ${session?.scope || "none"} | Token: ${token ? token.substring(0, 10) + "..." : "missing"}]`;
 
     return json<LoaderData>({
       discounts: [],
-      error: `${errorDetails} ${debugInfo}`,
-      shop: session?.shop || "",
+      error: `${error?.message || String(error)} ${debugInfo}`,
+      shop,
     });
   }
 };
@@ -276,7 +295,7 @@ export default function DiscountsDashboard() {
               shop
                 ? {
                     content: "Re-authenticate Store",
-                    url: `/auth?shop=${shop}`,
+                    url: `/auth/reset?shop=${shop}`,
                     target: "_top",
                   }
                 : undefined
