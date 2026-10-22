@@ -146,35 +146,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
     console.error("Unexpected error in app._index loader:", error);
 
-    const isForbidden =
-      (error instanceof Response && error.status === 403) ||
-      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
-
-    let errorMsg = "Failed to load discounts from Shopify Admin.";
-    if (isForbidden) {
-      errorMsg = `Shopify Access Forbidden (403): This draft app belongs to Partner Organization "Minimal Edit". In Shopify, unpublished apps can only access development stores inside the same Partner organization. If you are seeing this on a store from another account, please open the app in a store created under Minimal Edit (such as minimal-discount-test-3.myshopify.com).`;
-    } else if (error instanceof Response) {
+    let errorDetails = "";
+    if (error instanceof Response) {
       try {
         const text = await error.clone().text();
         console.error("Shopify Admin API Response in app._index loader:", error.status, text);
         try {
           const jsonBody = JSON.parse(text);
-          errorMsg = typeof jsonBody?.errors === "string" 
-            ? jsonBody.errors 
+          errorDetails = typeof jsonBody?.errors === "string"
+            ? jsonBody.errors
             : jsonBody?.errors?.message || jsonBody?.message || text;
         } catch {
-          errorMsg = text || `HTTP ${error.status}: ${error.statusText || "Access Forbidden"}`;
+          errorDetails = text || `HTTP ${error.status}: ${error.statusText || "Access Denied"}`;
         }
       } catch {
-        errorMsg = `HTTP ${error.status}: ${error.statusText || "Access Forbidden"}`;
+        errorDetails = `HTTP ${error.status}: ${error.statusText || "Access Denied"}`;
       }
-    } else if (error?.message) {
-      errorMsg = error.message;
+    } else {
+      errorDetails = error?.message || String(error);
     }
+
+    const debugInfo = `[Shop: ${session?.shop || "unknown"} | Scopes: ${session?.scope || "none"} | Token: ${session?.accessToken ? session.accessToken.substring(0, 10) + "..." : "missing"}]`;
 
     return json<LoaderData>({
       discounts: [],
-      error: errorMsg,
+      error: `${errorDetails} ${debugInfo}`,
     });
   }
 };
