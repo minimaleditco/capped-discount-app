@@ -52,7 +52,7 @@
     const variantInput = document.querySelector(
       'form[action*="/cart/add"] [name="id"], form[action*="/cart/add"] select[name="id"]'
     );
-    if (variantInput && variantInput.value) {
+    if (variantInput && variantInput.value && !isNaN(Number(variantInput.value))) {
       variantId = variantInput.value;
     }
 
