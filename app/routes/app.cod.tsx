@@ -197,6 +197,33 @@ export default function PartialCodPage() {
           </Banner>
         )}
 
+        {/* Shopify Checkout Setup Guide Banner */}
+        <Banner
+          title="⚡ Quick Setup: How to show 'Partial COD' at checkout"
+          tone="info"
+        >
+          <BlockStack gap="200">
+            <Text as="p">
+              Shopify requires custom payment options to be enabled once in your store's payment settings:
+            </Text>
+            <Text as="p">
+              <strong>1.</strong> In your Shopify store admin, click <strong>Settings</strong> (bottom-left gear icon) &gt; <strong>Payments</strong>.
+            </Text>
+            <Text as="p">
+              <strong>2.</strong> Scroll down to <strong>Manual payment methods</strong>, click <strong>Add manual payment method</strong> &gt; <strong>Create custom payment method</strong>.
+            </Text>
+            <Text as="p">
+              <strong>3.</strong> Name it: <strong>Partial Cash on Delivery (Advance Deposit)</strong>.
+            </Text>
+            <Text as="p">
+              <strong>4.</strong> In Payment Instructions, enter: <em>&quot;Pay an advance deposit online to confirm this order. The remaining balance is collected upon delivery.&quot;</em>
+            </Text>
+            <Text as="p">
+              <strong>5.</strong> Click <strong>Activate</strong>. Now customers will see this option at checkout!
+            </Text>
+          </BlockStack>
+        </Banner>
+
         <Layout>
           {/* Left Column: Form Settings */}
           <Layout.Section>
@@ -406,6 +433,35 @@ export default function PartialCodPage() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     4. Courier logistics (Shiprocket, Delhivery) reads the balance and collects ₹{simulation.balance} at the door.
                   </Text>
+                </BlockStack>
+              </Card>
+
+              {/* Thank You Page Integration Guide */}
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    Thank You Page Prompt
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    To display the deposit button on the customer's order confirmation page, copy this snippet to <strong>Shopify Settings &gt; Checkout &gt; Order status page (Additional scripts)</strong>:
+                  </Text>
+                  <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                    <Text as="p" variant="bodyXs">
+                      {`{% if order.financial_status == 'pending' %}`}
+                      <br />
+                      {`<div style="margin:20px 0;padding:20px;background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;text-align:center;">`}
+                      <br />
+                      {`  <h3 style="color:#15803d;margin-top:0;">⚡ Action Required: Confirm COD Order</h3>`}
+                      <br />
+                      {`  <p style="color:#374151;">Pay your advance deposit online to confirm shipment.</p>`}
+                      <br />
+                      {`  <a href="https://capped-discount-app.onrender.com/pay/{{ order.id }}?shop={{ shop.permanent_domain }}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 24px;border-radius:8px;font-weight:bold;text-decoration:none;">👉 Pay Advance Deposit Now</a>`}
+                      <br />
+                      {`</div>`}
+                      <br />
+                      {`{% endif %}`}
+                    </Text>
+                  </Box>
                 </BlockStack>
               </Card>
             </BlockStack>
