@@ -130,6 +130,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             id
             name
             displayFinancialStatus
+            statusPageUrl
             totalOutstandingSet {
               shopMoney {
                 amount
@@ -234,6 +235,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       success: true,
       orderId: createdOrder.id,
       orderName: createdOrder.name,
+      statusPageUrl: createdOrder.statusPageUrl || null,
       depositAmount,
       remainingBalance: balanceAmount,
       currency,

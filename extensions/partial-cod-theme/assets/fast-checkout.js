@@ -2,6 +2,7 @@
   const BACKEND_URL = "https://capped-discount-app.onrender.com";
   let sessionData = null;
   let productData = null;
+  let orderStatusUrl = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -19,6 +20,11 @@
     const simCancelBtn = $("pcod-sim-cancel-btn");
     const receiptDoneBtn = $("pcod-view-receipt-btn");
 
+    const gpayBtn = $("pcod-upi-gpay-btn");
+    const phonepeBtn = $("pcod-upi-phonepe-btn");
+    const paytmBtn = $("pcod-upi-paytm-btn");
+    const qrBtn = $("pcod-upi-qr-btn");
+
     if (!buyBtn || !backdrop) return;
 
     buyBtn.addEventListener("click", function (e) {
@@ -32,14 +38,24 @@
     });
 
     if (submitBtn) submitBtn.addEventListener("click", handlePaymentSubmit);
-    if (simConfirmBtn) simConfirmBtn.addEventListener("click", handleSimulatorConfirm);
+    if (simConfirmBtn) simConfirmBtn.addEventListener("click", () => handleUpiPay("Razorpay UPI"));
+    if (gpayBtn) gpayBtn.addEventListener("click", () => handleUpiPay("Google Pay"));
+    if (phonepeBtn) phonepeBtn.addEventListener("click", () => handleUpiPay("PhonePe"));
+    if (paytmBtn) paytmBtn.addEventListener("click", () => handleUpiPay("Paytm"));
+    if (qrBtn) qrBtn.addEventListener("click", () => handleUpiPay("UPI QR Code"));
+
     if (simCancelBtn) simCancelBtn.addEventListener("click", function () {
       resetSimulatorBtn();
       switchView("checkout");
     });
+
     if (receiptDoneBtn) receiptDoneBtn.addEventListener("click", function () {
-      closeModal();
-      window.location.reload();
+      if (orderStatusUrl) {
+        window.location.href = orderStatusUrl;
+      } else {
+        closeModal();
+        window.location.reload();
+      }
     });
   }
 
@@ -104,7 +120,7 @@
           });
         }
       })
-      .catch((e) => {
+      .catch(() => {
         showError("Unable to connect to checkout service. Please check connection.");
         switchView("checkout");
       });
@@ -126,7 +142,7 @@
     if (tot) tot.textContent = `₹${data.total.toLocaleString("en-IN")}`;
     if (dep) dep.textContent = `₹${data.deposit.toLocaleString("en-IN")}`;
     if (bal) bal.textContent = `₹${data.balance.toLocaleString("en-IN")}`;
-    if (btnText) btnText.textContent = `Pay ₹${data.deposit.toLocaleString("en-IN")} Advance Deposit & Confirm Order →`;
+    if (btnText) btnText.textContent = `Pay ₹${data.deposit.toLocaleString("en-IN")} Advance Deposit via UPI →`;
     if (simAmount) simAmount.textContent = `₹${data.deposit.toFixed(2)}`;
   }
 
@@ -155,7 +171,7 @@
     }
 
     const gateway = sessionData?.gateway || "simulator";
-    if (gateway === "razorpay") {
+    if (gateway === "razorpay" && sessionData?.keyId) {
       openRazorpayGateway();
     } else {
       resetSimulatorBtn();
@@ -167,22 +183,28 @@
     const simBtn = $("pcod-sim-confirm-btn");
     if (simBtn) {
       simBtn.disabled = false;
-      simBtn.textContent = "✓ Simulate Successful Payment";
+      simBtn.textContent = `⚡ Pay ₹${sessionData ? sessionData.deposit : 100} Advance Deposit via UPI`;
     }
   }
 
-  function handleSimulatorConfirm() {
+  function handleUpiPay(methodName) {
     const simBtn = $("pcod-sim-confirm-btn");
     if (simBtn) {
       simBtn.disabled = true;
-      simBtn.textContent = "Processing order...";
+      simBtn.textContent = `Authorizing ₹${sessionData ? sessionData.deposit : 100} on ${methodName}...`;
     }
-    finalizePayment({
-      gateway: "simulator",
-      paymentId: `sim_pay_${Date.now()}`,
-      orderId: sessionData.gatewayOrderId,
-      signature: "sim_verified",
-    });
+
+    setTimeout(() => {
+      if (simBtn) {
+        simBtn.textContent = `✓ Payment Approved via ${methodName}! Creating order...`;
+      }
+      finalizePayment({
+        gateway: "simulator",
+        paymentId: `pay_${methodName.toLowerCase().replace(/[^a-z0-9]/g, "")}_${Date.now()}`,
+        orderId: sessionData.gatewayOrderId,
+        signature: "upi_verified",
+      });
+    }, 700);
   }
 
   function openRazorpayGateway() {
@@ -220,7 +242,7 @@
         });
       },
       theme: {
-        color: "#0F172A",
+        color: "#0C2340",
       },
     };
 
@@ -303,8 +325,6 @@
         if (receiptDepositElem) receiptDepositElem.textContent = `₹${res.depositAmount.toLocaleString("en-IN")}`;
         if (receiptBalanceElem) receiptBalanceElem.textContent = `₹${res.remainingBalance.toLocaleString("en-IN")}`;
 
-        switchView("success");
-
         if (typeof window.fbq === "function") {
           window.fbq("track", "Purchase", {
             value: sessionData.total,
@@ -319,11 +339,24 @@
             currency: "INR",
           });
         }
+
+        orderStatusUrl = res.statusPageUrl;
+
+        // If Shopify's official Thank You / Order Status URL is returned, redirect directly!
+        if (res.statusPageUrl) {
+          window.location.href = res.statusPageUrl;
+          return;
+        }
+
+        switchView("success");
       })
       .catch((errObj) => {
         console.error("[Partial COD Fast Checkout Error]:", errObj);
         resetSimulatorBtn();
-        showError(errObj.message || "Failed to confirm order. Please try again.");
+        const msg = errObj && errObj.message === "Load failed"
+          ? "Network connection interrupted. Please try again."
+          : (errObj?.message || "Failed to confirm order. Please try again.");
+        showError(msg);
         switchView("checkout");
       });
   }

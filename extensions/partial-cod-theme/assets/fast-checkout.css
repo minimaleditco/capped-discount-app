@@ -407,52 +407,230 @@
   margin-top: 8px;
 }
 
-/* Simulator Modal (Sandbox) */
-.pcod-sim-box {
-  background: #F8FAFC;
-  border: 2px dashed #94A3B8;
+/* Razorpay UPI Gateway UI */
+.pcod-gateway-box {
+  background: #FFFFFF;
   border-radius: 12px;
-  padding: 24px;
-  text-align: center;
+  overflow: hidden;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
-.pcod-sim-badge {
-  display: inline-block;
-  background: #E2E8F0;
-  color: #334155;
-  font-size: 11px;
+.pcod-gateway-header {
+  background: #0C2340;
+  color: #FFFFFF;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pcod-gw-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 4px 10px;
-  border-radius: 20px;
-  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+
+.pcod-rzp-logo {
+  width: 18px;
+  height: 18px;
+  color: #0284C7;
+}
+
+.pcod-gw-secure {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.pcod-gw-amount-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.pcod-gw-sub {
+  font-size: 12px;
+  color: #64748B;
+  display: block;
+}
+
+.pcod-gw-store-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
 }
 
 .pcod-sim-amount {
-  font-size: 32px;
+  font-size: 22px;
   font-weight: 800;
+  color: #0C2340;
+}
+
+.pcod-gw-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748B;
+  letter-spacing: 0.05em;
+  padding: 14px 16px 8px;
+  text-transform: uppercase;
+}
+
+.pcod-upi-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.pcod-upi-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.pcod-upi-btn:hover {
+  border-color: #0284C7;
+  background: #F0F9FF;
+  transform: translateY(-1px);
+}
+
+.pcod-upi-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 9px;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+}
+
+.pcod-upi-badge.gpay {
+  background: #E8F5E9;
+  color: #1B5E20;
+}
+
+.pcod-upi-badge.phonepe {
+  background: #F3E5F5;
+  color: #4A148C;
+}
+
+.pcod-upi-badge.paytm {
+  background: #E1F5FE;
+  color: #01579B;
+}
+
+.pcod-upi-text {
+  flex: 1;
+  margin-left: 12px;
+}
+
+.pcod-upi-text strong {
+  display: block;
+  font-size: 13px;
   color: #0F172A;
-  margin: 16px 0;
+}
+
+.pcod-upi-text span {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.pcod-upi-arrow {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0284C7;
+  background: #E0F2FE;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.pcod-qr-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 14px;
+  padding: 10px 14px;
+  background: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pcod-qr-box:hover {
+  background: #F0F9FF;
+  border-color: #0284C7;
+}
+
+.pcod-qr-visual {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.pcod-qr-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pcod-qr-info strong {
+  display: block;
+  font-size: 13px;
+  color: #0F172A;
+}
+
+.pcod-qr-info span {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.pcod-gw-action-area {
+  padding: 10px 16px 16px;
+  border-top: 1px solid #F1F5F9;
 }
 
 .pcod-sim-pay-btn {
   width: 100%;
   height: 46px;
-  background: #10B981;
+  background: #0284C7;
   color: #FFFFFF;
   border: none;
-  border-radius: 8px;
-  font-size: 15px;
+  border-radius: 10px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.3);
+  transition: all 0.15s ease;
+}
+
+.pcod-sim-pay-btn:hover {
+  background: #0369A1;
 }
 
 .pcod-sim-cancel-btn {
+  width: 100%;
+  padding: 8px 0;
+  margin-top: 6px;
   background: transparent;
   border: none;
   color: #64748B;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
