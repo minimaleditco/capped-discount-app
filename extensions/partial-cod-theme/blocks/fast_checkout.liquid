@@ -1,0 +1,212 @@
+{% if product and product.available %}
+<div class="pcod-fast-checkout-wrapper" style="margin: 12px 0;">
+  <button 
+    type="button" 
+    class="pcod-btn" 
+    id="pcod-fast-buy-btn"
+    style="background-color: {{ block.settings.button_bg_color | default: '#0F172A' }}; color: {{ block.settings.button_text_color | default: '#FFFFFF' }};"
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+    data-product-title="{{ product.title | escape }}"
+    data-product-price="{{ product.selected_or_first_available_variant.price | divided_by: 100.0 }}"
+    data-product-image="{{ product.featured_image | image_url: width: 300 }}"
+    data-shop="{{ shop.permanent_domain }}"
+  >
+    <div class="pcod-btn-inner">
+      <div class="pcod-btn-left">
+        <svg class="pcod-bolt-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <span class="pcod-btn-title">{{ block.settings.button_text | default: 'Buy with Partial COD (Pay ₹100 Now)' }}</span>
+      </div>
+      <span class="pcod-btn-sub">Rest on Delivery</span>
+    </div>
+  </button>
+</div>
+
+<!-- Fast Checkout Slide-over Modal -->
+<div class="pcod-modal-backdrop" id="pcod-modal-backdrop" style="display: none;">
+  <div class="pcod-modal" id="pcod-modal">
+    <!-- Header -->
+    <div class="pcod-modal-header">
+      <div class="pcod-brand-info">
+        <div class="pcod-shield-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="pcod-store-name">{{ shop.name }}</div>
+          <div class="pcod-secure-badge">🔒 256-Bit SSL Secure Fast Checkout</div>
+        </div>
+      </div>
+      <button type="button" class="pcod-close-btn" id="pcod-close-modal-btn">&times;</button>
+    </div>
+
+    <!-- Modal Content -->
+    <div class="pcod-modal-body" id="pcod-modal-body">
+      <!-- Loading State -->
+      <div class="pcod-loading-view" id="pcod-loading-view" style="display: none;">
+        <div class="pcod-spinner"></div>
+        <p>Calculating order & payment rules...</p>
+      </div>
+
+      <!-- Main Checkout View -->
+      <div class="pcod-checkout-view" id="pcod-checkout-view">
+        <!-- Order Summary Card -->
+        <div class="pcod-summary-card">
+          <div class="pcod-product-row">
+            <img class="pcod-product-thumb" id="pcod-product-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Product" />
+            <div class="pcod-product-details">
+              <div class="pcod-product-name" id="pcod-product-name"></div>
+              <div class="pcod-product-qty">Qty: 1</div>
+            </div>
+            <div class="pcod-product-total" id="pcod-product-price"></div>
+          </div>
+
+          <div class="pcod-divider"></div>
+
+          <!-- Split Breakdown -->
+          <div class="pcod-split-rows">
+            <div class="pcod-split-row">
+              <span class="pcod-text-subdued">Order Total:</span>
+              <span class="pcod-font-semibold" id="pcod-summary-total">₹0</span>
+            </div>
+            <div class="pcod-split-row pcod-row-deposit">
+              <span>💳 Pay Online Now (Advance Deposit):</span>
+              <span class="pcod-badge-deposit" id="pcod-summary-deposit">₹100</span>
+            </div>
+            <div class="pcod-split-row pcod-row-balance">
+              <span>🚚 Pay Cash on Delivery (At Doorstep):</span>
+              <span class="pcod-badge-balance" id="pcod-summary-balance">₹0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trust Note -->
+        <div class="pcod-trust-banner">
+          <span>✨ No full prepayment needed. Secure your order with a small advance deposit and pay the rest at your doorstep.</span>
+        </div>
+
+        <!-- Delivery Address Form -->
+        <div class="pcod-form-section">
+          <div class="pcod-section-title">Delivery Details</div>
+          
+          <div class="pcod-input-group">
+            <label class="pcod-label">Mobile Number (for delivery updates) *</label>
+            <div class="pcod-phone-wrapper">
+              <span class="pcod-phone-prefix">🇮🇳 +91</span>
+              <input type="tel" class="pcod-input pcod-phone-input" id="pcod-input-phone" placeholder="98765 43210" maxlength="10" />
+            </div>
+          </div>
+
+          <div class="pcod-input-group">
+            <label class="pcod-label">Full Name *</label>
+            <input type="text" class="pcod-input" id="pcod-input-name" placeholder="John Doe" />
+          </div>
+
+          <div class="pcod-input-group">
+            <label class="pcod-label">House / Flat / Street Address *</label>
+            <input type="text" class="pcod-input" id="pcod-input-address" placeholder="Flat 402, Sunshine Heights, MG Road" />
+          </div>
+
+          <div class="pcod-input-row">
+            <div class="pcod-input-group pcod-half">
+              <label class="pcod-label">City *</label>
+              <input type="text" class="pcod-input" id="pcod-input-city" placeholder="Mumbai" />
+            </div>
+            <div class="pcod-input-group pcod-half">
+              <label class="pcod-label">PIN Code *</label>
+              <input type="text" class="pcod-input" id="pcod-input-zip" placeholder="400001" maxlength="6" />
+            </div>
+          </div>
+        </div>
+
+        <div class="pcod-error-banner" id="pcod-error-banner" style="display: none;"></div>
+
+        <!-- Action Button -->
+        <div class="pcod-action-section">
+          <button type="button" class="pcod-submit-btn" id="pcod-submit-payment-btn">
+            <span class="pcod-submit-text" id="pcod-submit-btn-text">Pay ₹100 Advance Deposit & Confirm Order →</span>
+          </button>
+          <div class="pcod-action-subtext" id="pcod-action-subtext">
+            Remaining balance collected in cash upon delivery.
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulator Modal Step (Sandbox Mode) -->
+      <div class="pcod-simulator-view" id="pcod-simulator-view" style="display: none;">
+        <div class="pcod-sim-box">
+          <div class="pcod-sim-badge">TEST SIMULATOR GATEWAY</div>
+          <h3>Simulate Advance Deposit Payment</h3>
+          <p class="pcod-text-subdued">Zero payment gateway required. Click below to test the instant payment flow.</p>
+          <div class="pcod-sim-amount" id="pcod-sim-amount">₹100.00</div>
+          <button type="button" class="pcod-sim-pay-btn" id="pcod-sim-confirm-btn">
+            ✓ Simulate Successful Payment
+          </button>
+          <button type="button" class="pcod-sim-cancel-btn" id="pcod-sim-cancel-btn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Success Screen -->
+      <div class="pcod-success-view" id="pcod-success-view" style="display: none;">
+        <div class="pcod-success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10" stroke="#D1FAE5" fill="#ECFDF5" />
+            <path d="M7 13l3 3 7-7" />
+          </svg>
+        </div>
+        <h2 class="pcod-success-title">Order Confirmed!</h2>
+        <div class="pcod-order-tag" id="pcod-success-order-name">Order #</div>
+        
+        <div class="pcod-receipt-card">
+          <div class="pcod-receipt-row">
+            <span>Online Deposit (Paid):</span>
+            <span class="pcod-text-green" id="pcod-receipt-deposit">₹100</span>
+          </div>
+          <div class="pcod-receipt-row">
+            <span>Cash on Delivery (Due):</span>
+            <span class="pcod-text-orange" id="pcod-receipt-balance">₹0</span>
+          </div>
+        </div>
+
+        <p class="pcod-success-message">
+          Your deposit has been received! Our warehouse is packing your order. Have the remaining COD balance ready for the delivery partner.
+        </p>
+
+        <button type="button" class="pcod-receipt-btn" id="pcod-view-receipt-btn">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Partial COD Button",
+  "target": "section",
+  "stylesheet": "fast-checkout.css",
+  "javascript": "fast-checkout.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button Label",
+      "default": "Buy with Partial COD (Pay ₹100 Now)"
+    },
+    {
+      "type": "color",
+      "id": "button_bg_color",
+      "label": "Button Background Color",
+      "default": "#0F172A"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button Text Color",
+      "default": "#FFFFFF"
+    }
+  ]
+}
+{% endschema %}
