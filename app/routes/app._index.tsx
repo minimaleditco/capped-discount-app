@@ -39,6 +39,7 @@ export interface SerializedDiscountItem {
 export interface LoaderData {
   discounts: SerializedDiscountItem[];
   error?: string | null;
+  shop?: string;
 }
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -86,6 +87,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return json<LoaderData>({
         discounts: [],
         error: result.errors.map((e: { message: string }) => e.message).join(", "),
+        shop: session?.shop || "",
       });
     }
 
@@ -139,7 +141,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       };
     });
 
-    return json<LoaderData>({ discounts, error: null });
+    return json<LoaderData>({ discounts, error: null, shop: session?.shop || "" });
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) {
       throw error;
@@ -147,20 +149,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("Unexpected error in app._index loader:", error);
 
     let errorDetails = "";
-    if (error instanceof Response) {
+    const rawResponse = error?.cause?.text
+      ? error.cause
+      : (error?.text ? error : (error?.response?.text ? error.response : null));
+
+    if (rawResponse && typeof rawResponse.text === "function") {
       try {
-        const text = await error.clone().text();
-        console.error("Shopify Admin API Response in app._index loader:", error.status, text);
+        const text = await rawResponse.clone().text();
+        console.error("Shopify Admin API Response in app._index loader:", rawResponse.status, text);
         try {
           const jsonBody = JSON.parse(text);
           errorDetails = typeof jsonBody?.errors === "string"
             ? jsonBody.errors
-            : jsonBody?.errors?.message || jsonBody?.message || text;
+            : (Array.isArray(jsonBody?.errors)
+                ? jsonBody.errors.map((e: any) => e.message || JSON.stringify(e)).join(", ")
+                : (jsonBody?.errors?.message || jsonBody?.message || text));
         } catch {
-          errorDetails = text || `HTTP ${error.status}: ${error.statusText || "Access Denied"}`;
+          errorDetails = text || `HTTP ${rawResponse.status}: ${rawResponse.statusText || "Access Denied"}`;
         }
       } catch {
-        errorDetails = `HTTP ${error.status}: ${error.statusText || "Access Denied"}`;
+        errorDetails = `HTTP ${rawResponse?.status || 403}: ${rawResponse?.statusText || "Access Denied"}`;
       }
     } else {
       errorDetails = error?.message || String(error);
@@ -171,6 +179,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json<LoaderData>({
       discounts: [],
       error: `${errorDetails} ${debugInfo}`,
+      shop: session?.shop || "",
     });
   }
 };
@@ -179,6 +188,7 @@ export default function DiscountsDashboard() {
   const data = useLoaderData<typeof loader>();
   const discounts = data?.discounts || [];
   const error = data?.error;
+  const shop = data?.shop;
   const navigation = useNavigation();
   const navigate = useNavigate();
 
@@ -259,8 +269,27 @@ export default function DiscountsDashboard() {
     >
       <BlockStack gap="500">
         {error && (
-          <Banner tone="critical" title="Error loading discounts">
-            <Text as="p">{error}</Text>
+          <Banner
+            tone="critical"
+            title="Error loading discounts"
+            action={
+              shop
+                ? {
+                    content: "Re-authenticate Store",
+                    url: `/auth?shop=${shop}`,
+                    target: "_top",
+                  }
+                : undefined
+            }
+          >
+            <BlockStack gap="200">
+              <Text as="p">{error}</Text>
+              {shop && (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  If the app scopes or configuration were updated, click Re-authenticate to refresh your store session token.
+                </Text>
+              )}
+            </BlockStack>
           </Banner>
         )}
 

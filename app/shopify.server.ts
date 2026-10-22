@@ -25,7 +25,7 @@ const activeSecret =
 const shopify = shopifyApp({
   apiKey: activeApiKey,
   apiSecretKey: activeSecret,
-  apiVersion: ("2026-01" as any),
+  apiVersion: ApiVersion.October24,
   scopes: ["write_discounts", "read_discounts"],
   appUrl: process.env.SHOPIFY_APP_URL || "https://capped-discount-app.onrender.com",
   authPathPrefix: "/auth",
@@ -34,7 +34,7 @@ const shopify = shopifyApp({
 });
 
 export default shopify;
-export const apiVersion = "2026-01";
+export const apiVersion = ApiVersion.October24;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
 export const unauthenticated = shopify.unauthenticated;

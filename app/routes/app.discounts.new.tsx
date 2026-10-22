@@ -104,7 +104,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     const response = await admin.graphql(GET_FUNCTION_ID);
-    const result = await response.json();
+    const result: any = await response.json();
 
     if (result.errors && result.errors.length > 0) {
       console.error("GraphQL errors in GET_FUNCTION_ID:", result.errors);
@@ -123,23 +123,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
 
-    const isForbidden =
-      (error instanceof Response && error.status === 403) ||
-      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
-    
     let errorDetail = "";
-    if (error instanceof Response) {
+    const raw = error?.cause?.text
+      ? error.cause
+      : (error?.text ? error : (error?.response?.text ? error.response : null));
+
+    if (raw && typeof raw.text === "function") {
       try {
-        const text = await error.clone().text();
-        console.error("Shopify Admin API Response in GET_FUNCTION_ID:", error.status, text);
+        const text = await raw.clone().text();
+        console.error("Shopify Admin API Response in GET_FUNCTION_ID:", raw.status, text);
         try {
           const jsonBody = JSON.parse(text);
-          errorDetail = typeof jsonBody?.errors === "string" ? jsonBody.errors : jsonBody?.errors?.message || jsonBody?.message || text;
+          errorDetail = typeof jsonBody?.errors === "string"
+            ? jsonBody.errors
+            : (Array.isArray(jsonBody?.errors)
+                ? jsonBody.errors.map((e: any) => e.message || JSON.stringify(e)).join(", ")
+                : (jsonBody?.errors?.message || jsonBody?.message || text));
         } catch {
           errorDetail = text;
         }
       } catch {
-        errorDetail = `HTTP ${error.status}: ${error.statusText || "Forbidden"}`;
+        errorDetail = `HTTP ${raw.status}: ${raw.statusText || "Forbidden"}`;
       }
     } else {
       console.error("Error fetching function ID in discounts.new loader:", error);
@@ -337,23 +341,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
 
-    const isForbidden =
-      (error instanceof Response && error.status === 403) ||
-      (typeof error?.message === "string" && error.message.toLowerCase().includes("forbidden"));
-    
     let errorDetail = "";
-    if (error instanceof Response) {
+    const raw = error?.cause?.text
+      ? error.cause
+      : (error?.text ? error : (error?.response?.text ? error.response : null));
+
+    if (raw && typeof raw.text === "function") {
       try {
-        const text = await error.clone().text();
-        console.error("Shopify Admin API Response in discount creation mutation:", error.status, text);
+        const text = await raw.clone().text();
+        console.error("Shopify Admin API Response in discount creation mutation:", raw.status, text);
         try {
           const jsonBody = JSON.parse(text);
-          errorDetail = typeof jsonBody?.errors === "string" ? jsonBody.errors : jsonBody?.errors?.message || jsonBody?.message || text;
+          errorDetail = typeof jsonBody?.errors === "string"
+            ? jsonBody.errors
+            : (Array.isArray(jsonBody?.errors)
+                ? jsonBody.errors.map((e: any) => e.message || JSON.stringify(e)).join(", ")
+                : (jsonBody?.errors?.message || jsonBody?.message || text));
         } catch {
           errorDetail = text;
         }
       } catch {
-        errorDetail = `HTTP ${error.status}: ${error.statusText || "Forbidden"}`;
+        errorDetail = `HTTP ${raw.status}: ${raw.statusText || "Forbidden"}`;
       }
     } else {
       console.error("Error executing discount creation mutation:", error);

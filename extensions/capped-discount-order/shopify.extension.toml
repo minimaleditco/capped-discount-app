@@ -1,7 +1,7 @@
 name = "capped-discount-order"
 handle = "capped-discount-order"
 type = "function"
-api_version = "2026-01"
+api_version = "2024-10"
 uid = "3136607f-4ff2-f870-992a-e8f69b26e1163110f412"
 
 [build]
