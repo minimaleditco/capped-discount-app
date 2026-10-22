@@ -19,7 +19,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const targetShop = shop || "minimal-discount-test-3.myshopify.com";
-  return redirect(`/auth?shop=${targetShop}`);
+  return redirect(`/app?shop=${targetShop}`);
 };
 
 export default function AuthReset() {

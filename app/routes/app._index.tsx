@@ -73,59 +73,16 @@ function formatDate(isoString: string): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop || "";
   const token = session?.accessToken || "";
 
   try {
-    const response = await fetch(`https://${shop}/admin/api/2026-01/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token,
-      },
-      body: JSON.stringify({
-        query: GET_APP_DISCOUNTS,
-        variables: { first: 50 },
-      }),
+    const response = await admin.graphql(GET_APP_DISCOUNTS, {
+      variables: { first: 50 },
     });
 
-    const text = await response.text();
-    console.log(`[Discounts Loader] Shopify HTTP ${response.status}:`, text);
-
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        if (db && shop) {
-          console.warn(`[Auto-Purge] Token returned HTTP ${response.status}. Purging session for ${shop}.`);
-          try {
-            db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(shop);
-          } catch (e) {
-            console.error("Failed to delete stale session:", e);
-          }
-        }
-      }
-
-      let errorMsg = `Shopify API HTTP ${response.status}`;
-      try {
-        const json = JSON.parse(text);
-        errorMsg = typeof json.errors === "string"
-          ? json.errors
-          : (Array.isArray(json.errors)
-              ? json.errors.map((e: any) => e.message || JSON.stringify(e)).join(", ")
-              : (json.errors?.message || json.message || text));
-      } catch {
-        errorMsg = text || `HTTP ${response.status}`;
-      }
-
-      const debugInfo = `[Shop: ${shop} | Scopes: ${session?.scope || "none"} | Token: ${token ? token.substring(0, 10) + "..." : "missing"}]`;
-      return json<LoaderData>({
-        discounts: [],
-        error: `${errorMsg} ${debugInfo}`,
-        shop,
-      });
-    }
-
-    const result = JSON.parse(text);
+    const result: any = await response.json();
 
     if (result.errors && result.errors.length > 0) {
       console.error("GraphQL errors fetching app discounts:", result.errors);
@@ -193,11 +150,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
     console.error("Unexpected error in app._index loader:", error);
 
+    let errorMsg = error?.message || String(error);
+    if (error?.response?.body) {
+      try {
+        errorMsg = typeof error.response.body === "string" ? error.response.body : JSON.stringify(error.response.body);
+      } catch {}
+    }
+
     const debugInfo = `[Shop: ${shop || "unknown"} | Scopes: ${session?.scope || "none"} | Token: ${token ? token.substring(0, 10) + "..." : "missing"}]`;
 
     return json<LoaderData>({
       discounts: [],
-      error: `${error?.message || String(error)} ${debugInfo}`,
+      error: `${errorMsg} ${debugInfo}`,
       shop,
     });
   }

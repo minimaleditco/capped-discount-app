@@ -30,7 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (db) {
         db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
       }
-      throw redirect(`/auth?shop=${session.shop}`);
+      throw redirect(`/app?shop=${session.shop}`);
     }
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
