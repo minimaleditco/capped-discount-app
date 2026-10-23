@@ -122,15 +122,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const draftOrderPayload: any = {
       lineItems: lineItemsInput,
       tags: [
+        "Partially Paid",
         "Partial COD",
-        `Deposit Due: ₹${deposit}`,
+        `Deposit Paid: ₹${deposit}`,
         `Doorstep Balance: ₹${balance}`,
+        `Collect ₹${balance} on Delivery`,
       ],
-      note: `[Partial Cash on Delivery Order]\n• Advance Deposit (Due Online Now): ₹${deposit.toFixed(2)}\n• Remaining Balance (Collect in Cash at Doorstep): ₹${balance.toFixed(2)}`,
+      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}`,
       customAttributes: [
+        { key: "Payment Status", value: "Partially Paid" },
+        { key: "Advance Deposit Paid", value: `₹${deposit.toFixed(2)}` },
+        { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
         { key: "partial_cod_order", value: "true" },
-        { key: "partial_cod_deposit", value: String(deposit) },
-        { key: "partial_cod_balance", value: String(balance) },
       ],
     };
 
