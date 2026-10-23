@@ -3,7 +3,7 @@ import { authenticate } from "../shopify.server";
 import { db } from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { topic, shop, session, admin } = await authenticate.webhook(request);
+  const { topic, shop, session, admin, payload } = await authenticate.webhook(request);
 
   console.log(`[Webhook Received] Topic: ${topic} for shop: ${shop}`);
 
@@ -38,6 +38,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.error(`Failed to purge shop data for ${shop}:`, error);
       }
       break;
+
+    case "ORDERS_CREATE": {
+      try {
+        const orderId = (payload as any)?.admin_graphql_api_id || `gid://shopify/Order/${(payload as any)?.id}`;
+        const tags = typeof (payload as any)?.tags === "string" ? (payload as any).tags : "";
+        const note = String((payload as any)?.note || "");
+        if (tags.includes("Partial COD") || note.includes("PARTIALLY PAID") || note.includes("Advance Deposit")) {
+          console.log(`[ORDERS_CREATE Webhook] Tagging order ${orderId} as Partially Paid`);
+          if (admin) {
+            await admin.graphql(
+              `#graphql
+              mutation AddPartiallyPaidTag($id: ID!, $tags: [String!]!) {
+                tagsAdd(id: $id, tags: $tags) {
+                  userErrors { message }
+                }
+              }
+            `,
+              {
+                variables: {
+                  id: orderId,
+                  tags: ["Partially Paid", "Partial COD"],
+                },
+              }
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("[Webhook orders/create error]:", e);
+      }
+      break;
+    }
 
     default:
       console.warn(`Unhandled webhook topic: ${topic}`);
