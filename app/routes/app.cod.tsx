@@ -22,6 +22,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { sendToMetaCAPI } from "../services/meta-capi.server";
+import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import {
   getPartialCodSettings,
   savePartialCodSettings,
@@ -124,6 +125,44 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
+    if (intent === "test_whatsapp") {
+      const testPhone = (formData.get("testPhone") as string) || "";
+      const whatsappProvider = (formData.get("whatsappProvider") as any) || "simulator";
+      const whatsappApiKey = (formData.get("whatsappApiKey") as string) || "";
+      const whatsappApiUrl = (formData.get("whatsappApiUrl") as string) || "";
+      const whatsappSender = (formData.get("whatsappSender") as string) || "";
+
+      if (!testPhone || testPhone.replace(/[^0-9]/g, "").length < 10) {
+        return json<ActionData>(
+          { success: false, errors: ["Please enter a valid 10-digit mobile number for the test WhatsApp message."] },
+          { status: 400 }
+        );
+      }
+
+      // Persist credentials for test
+      const current = await getPartialCodSettings(shop);
+      await savePartialCodSettings({
+        ...current,
+        whatsappProvider,
+        whatsappApiKey,
+        whatsappApiUrl,
+        whatsappSender,
+      });
+
+      const res = await sendWhatsAppOtp(shop, testPhone, "123456");
+      if (res.success) {
+        return json<ActionData>({
+          success: true,
+          message: `Test WhatsApp message triggered successfully via ${res.provider.toUpperCase()}! (Message ID: ${res.messageId})`,
+        });
+      } else {
+        return json<ActionData>(
+          { success: false, errors: [res.error || "Failed to trigger test WhatsApp message."] },
+          { status: 400 }
+        );
+      }
+    }
+
     const enabled = formData.get("enabled") === "true";
     const depositType = (formData.get("depositType") as "fixed" | "percentage") || "percentage";
     const depositValue = parseFloat(formData.get("depositValue") as string) || 10;
@@ -134,6 +173,11 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     const autoCancelMinutes = parseInt(formData.get("autoCancelMinutes") as string, 10) || 30;
     const metaPixelId = (formData.get("metaPixelId") as string) || "";
     const metaCapiToken = (formData.get("metaCapiToken") as string) || "";
+    const whatsappEnabled = formData.get("whatsappEnabled") === "true";
+    const whatsappProvider = (formData.get("whatsappProvider") as any) || "simulator";
+    const whatsappApiKey = (formData.get("whatsappApiKey") as string) || "";
+    const whatsappApiUrl = (formData.get("whatsappApiUrl") as string) || "";
+    const whatsappSender = (formData.get("whatsappSender") as string) || "";
 
     const errors: string[] = [];
     if (depositValue <= 0) {
@@ -144,6 +188,9 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     }
     if (gateway !== "simulator" && enabled && (!apiKey || !apiSecret)) {
       errors.push(`API Key and Secret are required when using ${gateway.toUpperCase()}.`);
+    }
+    if (whatsappEnabled && whatsappProvider !== "simulator" && !whatsappApiKey) {
+      errors.push(`WhatsApp API Key is required when using ${whatsappProvider.toUpperCase()}.`);
     }
 
     if (errors.length > 0) {
@@ -162,6 +209,11 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       autoCancelMinutes,
       metaPixelId,
       metaCapiToken,
+      whatsappEnabled,
+      whatsappProvider,
+      whatsappApiKey,
+      whatsappApiUrl,
+      whatsappSender,
       updatedAt: Date.now(),
     };
 
@@ -204,6 +256,13 @@ export default function PartialCodPage() {
   const [showToken, setShowToken] = useState<boolean>(false);
   const [testEventCode, setTestEventCode] = useState<string>("");
 
+  const [whatsappEnabled, setWhatsappEnabled] = useState<boolean>(settings.whatsappEnabled || false);
+  const [whatsappProvider, setWhatsappProvider] = useState<string>(settings.whatsappProvider || "simulator");
+  const [whatsappApiKey, setWhatsappApiKey] = useState<string>(settings.whatsappApiKey || "");
+  const [whatsappApiUrl, setWhatsappApiUrl] = useState<string>(settings.whatsappApiUrl || "");
+  const [whatsappSender, setWhatsappSender] = useState<string>(settings.whatsappSender || "");
+  const [testPhone, setTestPhone] = useState<string>("");
+
   // Simulation calculation on sample 1000 order
   const simulation = useMemo(() => {
     const sampleTotal = 1000;
@@ -230,6 +289,11 @@ export default function PartialCodPage() {
     fd.append("autoCancelMinutes", autoCancelMinutes);
     fd.append("metaPixelId", metaPixelId);
     fd.append("metaCapiToken", metaCapiToken);
+    fd.append("whatsappEnabled", whatsappEnabled.toString());
+    fd.append("whatsappProvider", whatsappProvider);
+    fd.append("whatsappApiKey", whatsappApiKey);
+    fd.append("whatsappApiUrl", whatsappApiUrl);
+    fd.append("whatsappSender", whatsappSender);
     submit(fd, { method: "post" });
   }, [
     enabled,
@@ -242,6 +306,11 @@ export default function PartialCodPage() {
     autoCancelMinutes,
     metaPixelId,
     metaCapiToken,
+    whatsappEnabled,
+    whatsappProvider,
+    whatsappApiKey,
+    whatsappApiUrl,
+    whatsappSender,
     submit,
   ]);
 
@@ -253,6 +322,17 @@ export default function PartialCodPage() {
     fd.append("testEventCode", testEventCode);
     submit(fd, { method: "post" });
   }, [metaPixelId, metaCapiToken, testEventCode, submit]);
+
+  const handleTestWhatsApp = useCallback(() => {
+    const fd = new FormData();
+    fd.append("intent", "test_whatsapp");
+    fd.append("testPhone", testPhone);
+    fd.append("whatsappProvider", whatsappProvider);
+    fd.append("whatsappApiKey", whatsappApiKey);
+    fd.append("whatsappApiUrl", whatsappApiUrl);
+    fd.append("whatsappSender", whatsappSender);
+    submit(fd, { method: "post" });
+  }, [testPhone, whatsappProvider, whatsappApiKey, whatsappApiUrl, whatsappSender, submit]);
 
   return (
     <Page
@@ -534,6 +614,101 @@ export default function PartialCodPage() {
                           disabled={!metaPixelId || !metaCapiToken}
                         >
                           Send Test Event to Meta
+                        </Button>
+                      </Box>
+                    </BlockStack>
+                  </FormLayout>
+                </BlockStack>
+              </Card>
+
+              {/* WhatsApp OTP & Courier Reminders */}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        WhatsApp OTP & Balance Dunning
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        Verify real mobile numbers via WhatsApp OTP and automate out-for-delivery courier balance reminders
+                      </Text>
+                    </BlockStack>
+                    <Badge tone={whatsappEnabled ? "success" : "attention"}>
+                      {whatsappEnabled ? "OTP ACTIVE" : "OTP OFF"}
+                    </Badge>
+                  </InlineStack>
+
+                  <Checkbox
+                    label="Require Pre-Checkout WhatsApp OTP Verification"
+                    checked={whatsappEnabled}
+                    onChange={(newVal) => setWhatsappEnabled(newVal)}
+                    helpText="When enabled, buyers selecting Partial COD must verify a 6-digit OTP received on WhatsApp before draft orders are created. Eliminates ghost and fake orders."
+                  />
+
+                  <FormLayout>
+                    <Select
+                      label="WhatsApp Messaging Provider"
+                      options={[
+                        { label: "Built-in Sandbox Simulator (For development & testing)", value: "simulator" },
+                        { label: "Interakt WhatsApp Business API (Recommended for India)", value: "interakt" },
+                        { label: "Twilio Programmable Messaging (Global)", value: "twilio" },
+                      ]}
+                      value={whatsappProvider}
+                      onChange={(val) => setWhatsappProvider(val as any)}
+                    />
+
+                    {whatsappProvider !== "simulator" && (
+                      <BlockStack gap="300">
+                        <TextField
+                          label={whatsappProvider === "twilio" ? "Twilio Auth Token" : "Interakt Secret API Key"}
+                          type="password"
+                          value={whatsappApiKey}
+                          onChange={(val) => setWhatsappApiKey(val)}
+                          autoComplete="off"
+                          placeholder="Your WhatsApp API secret key"
+                        />
+
+                        {whatsappProvider === "twilio" && (
+                          <TextField
+                            label="Twilio Account SID"
+                            value={whatsappApiUrl}
+                            onChange={(val) => setWhatsappApiUrl(val)}
+                            autoComplete="off"
+                            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                          />
+                        )}
+
+                        <TextField
+                          label={whatsappProvider === "twilio" ? "Twilio WhatsApp Sender Number" : "Interakt Sender Channel ID"}
+                          value={whatsappSender}
+                          onChange={(val) => setWhatsappSender(val)}
+                          autoComplete="off"
+                          placeholder={whatsappProvider === "twilio" ? "whatsapp:+14155238886" : "e.g. default"}
+                        />
+                      </BlockStack>
+                    )}
+
+                    <Divider />
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">
+                        Test WhatsApp Delivery
+                      </Text>
+                      <TextField
+                        label="Test Mobile Number"
+                        value={testPhone}
+                        onChange={(val) => setTestPhone(val)}
+                        autoComplete="off"
+                        placeholder="e.g. 9876543210"
+                        helpText="Enter a 10-digit mobile number to dispatch a live test OTP message."
+                      />
+                      <Box paddingBlockStart="200">
+                        <Button
+                          onClick={handleTestWhatsApp}
+                          loading={isSaving}
+                          disabled={!testPhone || testPhone.length < 10}
+                        >
+                          Send Test WhatsApp Message
                         </Button>
                       </Box>
                     </BlockStack>

@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { unauthenticated } from "../shopify.server";
-import { getPartialCodSettings } from "../db.server";
+import { getPartialCodSettings, validateVerificationToken } from "../db.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
 
 const corsHeaders = {
@@ -123,6 +123,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
+    // Verify WhatsApp OTP if enabled
+    const settings = await getPartialCodSettings(shopToUse);
+    const customerPhone = String(body.phone || body.customerPhone || "").replace(/[^0-9]/g, "");
+    const otpToken = String(body.otpToken || body.token || "").trim();
+
+    if (settings.whatsappEnabled) {
+      const isVerified = await validateVerificationToken(shopToUse, customerPhone, otpToken);
+      if (!isVerified) {
+        return json(
+          {
+            success: false,
+            error: "Mobile number verification required. Please verify the OTP sent to your WhatsApp number before placing a Partial COD order.",
+            requiresOtp: true,
+          },
+          { status: 403, headers: corsHeaders }
+        );
+      }
+    }
+
     // Determine dynamic risk-based deposit and remaining balance
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const evaluation = await evaluateDepositRules(shop, {
@@ -158,12 +177,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         evaluation.matchedRule
           ? `Rule: ${evaluation.matchedRule.conditionType}`
           : "Rule: Store Default",
+        ...(customerPhone ? [`WhatsApp Verified: +${customerPhone}`] : []),
       ],
-      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}`,
+      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}${customerPhone ? `\n• Verified WhatsApp: +${customerPhone}` : ""}`,
       customAttributes: [
         { key: "Payment Status", value: "Partially Paid" },
         { key: "Advance Deposit Paid", value: `₹${deposit.toFixed(2)}` },
         { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
+        ...(customerPhone ? [{ key: "Verified WhatsApp", value: customerPhone }] : []),
         { key: "Deposit Rule Applied", value: evaluation.ruleSummary },
         { key: "partial_cod_order", value: "true" },
       ],

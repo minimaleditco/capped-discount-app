@@ -44,6 +44,8 @@ model PartialCodSettings {
   autoCancelMinutes Int      @default(30)
   metaPixelId       String?  @default("")
   metaCapiToken     String?  @default("")
+  whatsappEnabled   Boolean  @default(false)
+  whatsappProvider  String   @default("simulator")
   whatsappApiKey    String?  @default("")
   whatsappApiUrl    String?  @default("")
   whatsappSender    String?  @default("")
@@ -96,4 +98,19 @@ model DiscountSavings {
 
   @@index([shop])
   @@index([orderId])
+}
+
+model OtpSession {
+  id        String   @id @default(cuid())
+  shop      String
+  phone     String
+  otpCode   String
+  token     String   @unique
+  verified  Boolean  @default(false)
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([shop, phone])
+  @@index([token])
 }
