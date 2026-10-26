@@ -6,6 +6,7 @@ import {
   verifyOtpSession,
 } from "../db.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
+import { sendSmsOtp } from "../services/sms.server";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,24 +94,47 @@ async function handleOtpRequest(request: Request) {
 
     // 1. ACTION: SEND OTP
     if (actionType === "send") {
+      const channel = String(body.channel || "sms").toLowerCase();
       const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const session = await createOtpSession(shop, phone, randomCode);
+      await createOtpSession(shop, phone, randomCode);
 
-      const sendResult = await sendWhatsAppOtp(shop, phone, randomCode);
-      const isSim =
-        sendResult.provider === "simulator" ||
-        settings.whatsappProvider === "simulator" ||
-        !settings.whatsappApiKey;
+      if (channel === "whatsapp") {
+        const sendResult = await sendWhatsAppOtp(shop, phone, randomCode);
+        const isSim =
+          sendResult.provider === "simulator" ||
+          settings.whatsappProvider === "simulator" ||
+          !settings.whatsappApiKey;
+
+        return json(
+          {
+            success: true,
+            required: true,
+            channel: "whatsapp",
+            phone,
+            message: isSim
+              ? `Simulator Mode: Use WhatsApp code ${randomCode} or 123456`
+              : "OTP sent to your WhatsApp number.",
+            provider: sendResult.provider,
+            ...(isSim ? { debugOtp: randomCode } : {}),
+          },
+          { headers: corsHeaders }
+        );
+      }
+
+      // Default: Carrier SMS OTP (Fast2SMS / Twilio / Simulator)
+      const smsResult = await sendSmsOtp(shop, phone, randomCode);
+      const isSim = smsResult.provider === "simulator" || !settings.smsApiKey;
 
       return json(
         {
           success: true,
           required: true,
+          channel: "sms",
           phone,
           message: isSim
-            ? `Simulator Mode: Use code ${randomCode} or 123456`
-            : "OTP sent to your WhatsApp number.",
-          provider: sendResult.provider,
+            ? `Simulator Mode: Use SMS code ${randomCode} or 123456`
+            : "SMS verification code sent to your mobile number.",
+          provider: smsResult.provider,
           ...(isSim ? { debugOtp: randomCode } : {}),
         },
         { headers: corsHeaders }

@@ -50,17 +50,37 @@
           </div>
         </div>
 
+        <!-- Coupon & Best Deals Section -->
+        <div class="pcod-coupon-section" id="pcod-coupon-section">
+          <div class="pcod-coupon-input-row">
+            <span class="pcod-coupon-icon">🏷️</span>
+            <input type="text" id="pcod-coupon-input" class="pcod-coupon-input" placeholder="Enter coupon code (e.g. SAVE10)" />
+            <button type="button" id="pcod-coupon-apply-btn" class="pcod-coupon-apply-btn">Apply</button>
+          </div>
+          <div id="pcod-coupon-applied-msg" class="pcod-coupon-applied-msg" style="display: none;"></div>
+          <!-- Available Best Deal Offers -->
+          <div class="pcod-available-coupons-wrap" id="pcod-available-coupons-wrap" style="display: none;">
+            <div class="pcod-available-coupons-title">Tap to apply best deal:</div>
+            <div class="pcod-coupon-chips" id="pcod-coupon-chips"></div>
+          </div>
+        </div>
+
         <!-- Option Cards Container -->
         <div class="pcod-cards-container" id="pcod-cards-container">
           <!-- Option 1: Full Prepaid -->
           <div class="pcod-option-card pcod-card-prepaid" id="pcod-card-prepaid">
             <div class="pcod-card-top">
               <span class="pcod-badge pcod-badge-green">⚡ Fastest Dispatch</span>
-              <span class="pcod-card-price" id="pcod-prepaid-price">₹0</span>
+              <span class="pcod-prepaid-tag" id="pcod-prepaid-tag">⚡ Extra 5% OFF on Prepaid</span>
+              <div class="pcod-price-stack">
+                <span class="pcod-card-price" id="pcod-prepaid-price">₹0</span>
+                <span class="pcod-original-price" id="pcod-prepaid-orig-price" style="display: none;">₹0</span>
+                <span class="pcod-save-badge" id="pcod-prepaid-save-badge" style="display: none;">Save ₹0</span>
+              </div>
             </div>
             <div class="pcod-card-body">
               <div class="pcod-card-title">Option 1: Full Prepaid</div>
-              <div class="pcod-card-desc">Pay 100% online now via UPI, Cards, or Netbanking. Fastest order processing & instant dispatch.</div>
+              <div class="pcod-card-desc" id="pcod-prepaid-desc">Pay 100% online now via UPI, Cards, or Netbanking. Extra prepaid savings applied automatically.</div>
             </div>
             <button type="button" class="pcod-select-btn pcod-btn-prepaid" id="pcod-btn-choose-prepaid">
               <span class="pcod-btn-text" id="pcod-prepaid-btn-label">Pay Full ₹0 Online →</span>
@@ -86,13 +106,13 @@
           </div>
         </div>
 
-        <!-- WhatsApp OTP Verification Step -->
+        <!-- SMS OTP Verification Step -->
         <div class="pcod-otp-step" id="pcod-otp-step" style="display: none;">
           <div class="pcod-otp-header">
             <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">← Change Payment Option</button>
           </div>
-          <div class="pcod-otp-title">Verify WhatsApp for Partial COD</div>
-          <div class="pcod-otp-desc">To confirm your order and protect against bogus orders, please verify your mobile number. A 6-digit code will be sent to your WhatsApp.</div>
+          <div class="pcod-otp-title">Verify Mobile via SMS</div>
+          <div class="pcod-otp-desc">To confirm your Partial COD order, please enter your mobile number. A 6-digit SMS verification code will be sent.</div>
 
           <!-- Phone Input Step -->
           <div class="pcod-otp-phone-group" id="pcod-otp-phone-group">
@@ -100,18 +120,18 @@
               <span class="pcod-otp-prefix">+91</span>
               <input type="tel" id="pcod-otp-phone-input" class="pcod-otp-input" placeholder="10-digit mobile number" maxlength="10" />
             </div>
-            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Get WhatsApp Code →</button>
+            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Send SMS Code →</button>
           </div>
 
           <!-- Code Input Step -->
           <div class="pcod-otp-code-group" id="pcod-otp-code-group" style="display: none;">
-            <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your WhatsApp!</div>
+            <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your mobile SMS inbox!</div>
             <div class="pcod-otp-input-wrap">
               <input type="text" id="pcod-otp-code-input" class="pcod-otp-input pcod-code" placeholder="------" maxlength="6" />
             </div>
-            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify & Proceed to Checkout →</button>
+            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify SMS & Place Order →</button>
             <div class="pcod-otp-resend">
-              <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend</button>
+              <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend SMS</button>
             </div>
           </div>
 
@@ -156,6 +176,29 @@
     if (codBtn && !codBtn.getAttribute("data-pcod-bound")) {
       codBtn.setAttribute("data-pcod-bound", "true");
       codBtn.addEventListener("click", handleCodCheckout);
+    }
+
+    // Coupon listeners
+    const applyCouponBtn = $("pcod-coupon-apply-btn");
+    const couponInput = $("pcod-coupon-input");
+
+    if (applyCouponBtn && !applyCouponBtn.getAttribute("data-pcod-bound")) {
+      applyCouponBtn.setAttribute("data-pcod-bound", "true");
+      applyCouponBtn.addEventListener("click", function () {
+        const val = couponInput ? couponInput.value.trim() : "";
+        if (val) handleApplyCoupon(val);
+      });
+    }
+
+    if (couponInput && !couponInput.getAttribute("data-pcod-bound")) {
+      couponInput.setAttribute("data-pcod-bound", "true");
+      couponInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const val = couponInput.value.trim();
+          if (val) handleApplyCoupon(val);
+        }
+      });
     }
 
     const otpBackBtn = $("pcod-otp-back-btn");
@@ -415,7 +458,236 @@
     }
   }
 
+  let baseOrderTotal = 0;
+  let activeCoupon = null;
+  let storeOffers = {
+    coupons: [
+      { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
+      { code: "FLAT50", title: "Flat ₹50 OFF", type: "fixed", value: 50, minSubtotal: 299 },
+      { code: "CAP20", title: "20% OFF (Max ₹200)", type: "percentage", value: 20, maxCap: 200, minSubtotal: 500 },
+    ],
+    prepaidOffer: {
+      enabled: true,
+      type: "percentage",
+      value: 5,
+      badgeText: "⚡ Extra 5% OFF on Prepaid",
+    },
+  };
+
+  async function loadStoreOffers(subtotal) {
+    try {
+      const shop = getShopDomain();
+      const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons?shop=${encodeURIComponent(shop)}&subtotal=${subtotal}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.coupons && Array.isArray(data.coupons)) {
+          storeOffers.coupons = data.coupons;
+        }
+        if (data.prepaidOffer) {
+          storeOffers.prepaidOffer = data.prepaidOffer;
+        }
+        renderCouponChips();
+      }
+    } catch (e) {
+      console.warn("[Store Offers Fetch Fallback]:", e);
+      renderCouponChips();
+    }
+  }
+
+  function renderCouponChips() {
+    const wrap = $("pcod-available-coupons-wrap");
+    const container = $("pcod-coupon-chips");
+    if (!container) return;
+
+    if (!storeOffers.coupons || storeOffers.coupons.length === 0) {
+      if (wrap) wrap.style.display = "none";
+      return;
+    }
+
+    if (wrap) wrap.style.display = "block";
+    container.innerHTML = storeOffers.coupons
+      .map(function (c) {
+        const badge = c.type === "percentage" ? `${c.value}% OFF` : `₹${c.value} OFF`;
+        const isActive = activeCoupon && activeCoupon.code === c.code;
+        return `
+          <div class="pcod-coupon-chip ${isActive ? "active" : ""}" data-coupon-code="${c.code}">
+            <span class="pcod-coupon-chip-code">${c.code}</span>
+            <span class="pcod-coupon-chip-badge">${badge}</span>
+          </div>
+        `;
+      })
+      .join("");
+
+    container.querySelectorAll(".pcod-coupon-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        const code = this.getAttribute("data-coupon-code");
+        const input = $("pcod-coupon-input");
+        if (input) input.value = code;
+        handleApplyCoupon(code);
+      });
+    });
+  }
+
+  async function handleApplyCoupon(codeToApply) {
+    const input = $("pcod-coupon-input");
+    const applyBtn = $("pcod-coupon-apply-btn");
+    const msgElem = $("pcod-coupon-applied-msg");
+    const rawCode = String(codeToApply || (input ? input.value : "")).trim().toUpperCase();
+
+    if (!rawCode) return;
+
+    if (applyBtn) {
+      applyBtn.disabled = true;
+      applyBtn.textContent = "Applying...";
+    }
+
+    try {
+      const shop = getShopDomain();
+      const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shop,
+          code: rawCode,
+          subtotal: baseOrderTotal,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        throw new Error(data.error || `Coupon '${rawCode}' is not valid for this order.`);
+      }
+
+      activeCoupon = data;
+      if (input) input.value = data.code;
+
+      if (msgElem) {
+        msgElem.style.display = "flex";
+        msgElem.style.background = "#DCFCE7";
+        msgElem.style.borderColor = "#86EFAC";
+        msgElem.style.color = "#166534";
+        msgElem.innerHTML = `
+          <span>🎉 Code <strong>${data.code}</strong> applied! Saved ₹${data.discountAmount.toLocaleString("en-IN")} (${data.discountSummary})</span>
+          <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
+        `;
+        const removeBtn = $("pcod-coupon-remove-btn");
+        if (removeBtn) {
+          removeBtn.addEventListener("click", handleRemoveCoupon);
+        }
+      }
+
+      renderCouponChips();
+      recalculateModalPrices();
+    } catch (err) {
+      if (msgElem) {
+        msgElem.style.display = "flex";
+        msgElem.style.background = "#FEF2F2";
+        msgElem.style.borderColor = "#FCA5A5";
+        msgElem.style.color = "#DC2626";
+        msgElem.innerHTML = `<span>⚠️ ${err.message || "Failed to apply coupon."}</span>`;
+      }
+    } finally {
+      if (applyBtn) {
+        applyBtn.disabled = false;
+        applyBtn.textContent = "Apply";
+      }
+    }
+  }
+
+  function handleRemoveCoupon() {
+    activeCoupon = null;
+    const input = $("pcod-coupon-input");
+    const msgElem = $("pcod-coupon-applied-msg");
+    if (input) input.value = "";
+    if (msgElem) {
+      msgElem.style.display = "none";
+      msgElem.style.background = "#DCFCE7";
+      msgElem.style.borderColor = "#86EFAC";
+      msgElem.style.color = "#166534";
+      msgElem.innerHTML = "";
+    }
+    renderCouponChips();
+    recalculateModalPrices();
+  }
+
+  function recalculateModalPrices() {
+    const couponDiscount = activeCoupon ? activeCoupon.discountAmount : 0;
+    const effectiveSubtotal = Math.max(0, baseOrderTotal - couponDiscount);
+
+    // Extra Prepaid Discount calculation
+    let extraPrepaid = 0;
+    const pOffer = storeOffers.prepaidOffer;
+    if (pOffer && pOffer.enabled && pOffer.value > 0) {
+      if (pOffer.type === "percentage") {
+        extraPrepaid = Math.round(((effectiveSubtotal * pOffer.value) / 100) * 100) / 100;
+      } else {
+        extraPrepaid = pOffer.value;
+      }
+      extraPrepaid = Math.min(extraPrepaid, effectiveSubtotal);
+    }
+
+    const prepaidTotal = Math.max(0, Math.round((effectiveSubtotal - extraPrepaid) * 100) / 100);
+    const totalPrepaidSavings = Math.round((baseOrderTotal - prepaidTotal) * 100) / 100;
+
+    // 1. Update Option 1 (Full Prepaid) UI
+    const prepaidPrice = $("pcod-prepaid-price");
+    const prepaidOrigPrice = $("pcod-prepaid-orig-price");
+    const prepaidSaveBadge = $("pcod-prepaid-save-badge");
+    const prepaidTag = $("pcod-prepaid-tag");
+    const prepaidBtnLabel = $("pcod-prepaid-btn-label");
+
+    if (prepaidPrice) prepaidPrice.textContent = `₹${prepaidTotal.toLocaleString("en-IN")}`;
+
+    if (totalPrepaidSavings > 0) {
+      if (prepaidOrigPrice) {
+        prepaidOrigPrice.textContent = `₹${baseOrderTotal.toLocaleString("en-IN")}`;
+        prepaidOrigPrice.style.display = "inline";
+      }
+      if (prepaidSaveBadge) {
+        prepaidSaveBadge.textContent = `Save ₹${totalPrepaidSavings.toLocaleString("en-IN")}`;
+        prepaidSaveBadge.style.display = "inline";
+      }
+    } else {
+      if (prepaidOrigPrice) prepaidOrigPrice.style.display = "none";
+      if (prepaidSaveBadge) prepaidSaveBadge.style.display = "none";
+    }
+
+    if (prepaidTag) {
+      if (pOffer && pOffer.enabled) {
+        prepaidTag.textContent = pOffer.badgeText || "⚡ Extra 5% OFF on Prepaid";
+        prepaidTag.style.display = "inline-block";
+      } else {
+        prepaidTag.style.display = "none";
+      }
+    }
+
+    if (prepaidBtnLabel) {
+      prepaidBtnLabel.textContent = totalPrepaidSavings > 0
+        ? `Pay Full ₹${prepaidTotal.toLocaleString("en-IN")} Online (Save ₹${totalPrepaidSavings.toLocaleString("en-IN")}) →`
+        : `Pay Full ₹${prepaidTotal.toLocaleString("en-IN")} Online →`;
+    }
+
+    // 2. Update Option 2 (Partial COD) UI
+    let deposit = effectiveSubtotal > 100 ? 100 : effectiveSubtotal;
+    const balance = Math.max(0, Math.round((effectiveSubtotal - deposit) * 100) / 100);
+
+    const codNow = $("pcod-cod-now");
+    const codDoorstep = $("pcod-cod-doorstep");
+    const descDeposit = $("pcod-cod-desc-deposit");
+    const descBalance = $("pcod-cod-desc-balance");
+    const codBtnLabel = $("pcod-cod-btn-label");
+
+    if (codNow) codNow.textContent = `₹${deposit.toLocaleString("en-IN")} Now`;
+    if (codDoorstep) codDoorstep.textContent = `+ ₹${balance.toLocaleString("en-IN")} on Delivery`;
+    if (descDeposit) descDeposit.textContent = `₹${deposit.toLocaleString("en-IN")}`;
+    if (descBalance) descBalance.textContent = `₹${balance.toLocaleString("en-IN")}`;
+    if (codBtnLabel) codBtnLabel.textContent = `Pay ₹${deposit.toLocaleString("en-IN")} Deposit & Confirm COD →`;
+  }
+
   function populateModalUI({ title, image, meta, total, deposit, balance }) {
+    baseOrderTotal = total;
+    activeCoupon = null;
+
     const imgElem = $("pcod-choice-img");
     const nameElem = $("pcod-choice-prod-name");
     const metaElem = $("pcod-choice-prod-meta");
@@ -431,24 +703,11 @@
     if (nameElem) nameElem.textContent = title;
     if (metaElem) metaElem.textContent = meta;
 
-    // Option 1 (Full Prepaid)
-    const prepaidPrice = $("pcod-prepaid-price");
-    const prepaidBtnLabel = $("pcod-prepaid-btn-label");
-    if (prepaidPrice) prepaidPrice.textContent = `₹${total.toLocaleString("en-IN")}`;
-    if (prepaidBtnLabel) prepaidBtnLabel.textContent = `Pay Full ₹${total.toLocaleString("en-IN")} Online →`;
+    // Load available promotional coupon deals & prepaid rules
+    loadStoreOffers(total);
 
-    // Option 2 (Partial COD)
-    const codNow = $("pcod-cod-now");
-    const codDoorstep = $("pcod-cod-doorstep");
-    const descDeposit = $("pcod-cod-desc-deposit");
-    const descBalance = $("pcod-cod-desc-balance");
-    const codBtnLabel = $("pcod-cod-btn-label");
-
-    if (codNow) codNow.textContent = `₹${deposit.toLocaleString("en-IN")} Now`;
-    if (codDoorstep) codDoorstep.textContent = `+ ₹${balance.toLocaleString("en-IN")} on Delivery`;
-    if (descDeposit) descDeposit.textContent = `₹${deposit.toLocaleString("en-IN")}`;
-    if (descBalance) descBalance.textContent = `₹${balance.toLocaleString("en-IN")}`;
-    if (codBtnLabel) codBtnLabel.textContent = `Pay ₹${deposit.toLocaleString("en-IN")} Deposit & Confirm COD →`;
+    // Initial pricing recalculation
+    recalculateModalPrices();
 
     // Reset button states
     const prepaidBtn = $("pcod-btn-choose-prepaid");
@@ -477,16 +736,18 @@
     }
     if (label) label.textContent = "Opening Standard Checkout...";
 
-    if (activeMode === "cart") {
-      window.location.href = "/checkout";
-    } else {
+    let checkoutUrl = "/checkout";
+    if (activeMode !== "cart" && activeProduct && activeProduct.variantId) {
       const { variantId, quantity } = activeProduct;
-      if (variantId) {
-        window.location.href = `/cart/${variantId}:${quantity}`;
-      } else {
-        window.location.href = "/checkout";
-      }
+      checkoutUrl = `/cart/${variantId}:${quantity}`;
     }
+
+    // Pass coupon code to checkout if applied
+    if (activeCoupon && activeCoupon.code) {
+      checkoutUrl += (checkoutUrl.includes("?") ? "&" : "?") + `discount=${encodeURIComponent(activeCoupon.code)}`;
+    }
+
+    window.location.href = checkoutUrl;
   }
 
   let verifiedPhone = "";
@@ -494,8 +755,10 @@
 
   function showOtpStep() {
     const cards = $("pcod-cards-container");
+    const couponSec = $("pcod-coupon-section");
     const otpStep = $("pcod-otp-step");
     if (cards) cards.style.display = "none";
+    if (couponSec) couponSec.style.display = "none";
     if (otpStep) otpStep.style.display = "block";
     const phoneInput = $("pcod-otp-phone-input");
     if (phoneInput) phoneInput.focus();
@@ -503,8 +766,10 @@
 
   function hideOtpStep() {
     const cards = $("pcod-cards-container");
+    const couponSec = $("pcod-coupon-section");
     const otpStep = $("pcod-otp-step");
     if (cards) cards.style.display = "block";
+    if (couponSec) couponSec.style.display = "block";
     if (otpStep) otpStep.style.display = "none";
     setOtpError("");
     const codBtn = $("pcod-btn-choose-cod");
@@ -539,7 +804,7 @@
     setOtpError("");
     if (sendBtn) {
       sendBtn.disabled = true;
-      sendBtn.textContent = "Sending code to WhatsApp...";
+      sendBtn.textContent = "Sending SMS code...";
     }
 
     try {
@@ -547,11 +812,11 @@
       const res = await fetch(`${BACKEND_URL}/api/partial-cod/otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", shop, phone: rawPhone }),
+        body: JSON.stringify({ action: "send", shop, phone: rawPhone, channel: "sms" }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to send OTP.");
+        throw new Error(data.error || "Failed to deliver SMS OTP.");
       }
 
       const phoneGroup = $("pcod-otp-phone-group");
@@ -562,8 +827,8 @@
       const sentText = $("pcod-otp-sent-text");
       if (sentText) {
         sentText.textContent = data.debugOtp
-          ? `✅ Simulator OTP: ${data.debugOtp} (or 123456)`
-          : `✅ Code sent to WhatsApp +91 ${rawPhone}!`;
+          ? `✅ Simulator SMS OTP: ${data.debugOtp} (or 123456)`
+          : `✅ 6-digit code sent via SMS to +91 ${rawPhone}!`;
       }
 
       const codeInput = $("pcod-otp-code-input");
@@ -572,11 +837,11 @@
         codeInput.focus();
       }
     } catch (err) {
-      setOtpError(err.message || "Failed to deliver OTP. Please check your number.");
+      setOtpError(err.message || "Failed to deliver SMS OTP. Please check your number.");
     } finally {
       if (sendBtn) {
         sendBtn.disabled = false;
-        sendBtn.textContent = "Get WhatsApp Code →";
+        sendBtn.textContent = "Send SMS Code →";
       }
     }
   }
@@ -590,14 +855,14 @@
     const otp = codeInput ? codeInput.value.trim() : "";
 
     if (!otp || otp.length < 4) {
-      setOtpError("Please enter the 6-digit code received on WhatsApp.");
+      setOtpError("Please enter the 6-digit SMS verification code.");
       return;
     }
 
     setOtpError("");
     if (verifyBtn) {
       verifyBtn.disabled = true;
-      verifyBtn.textContent = "Verifying & Opening Checkout...";
+      verifyBtn.textContent = "Verifying & Placing Order...";
     }
 
     try {
@@ -609,19 +874,19 @@
       });
       const data = await res.json();
       if (!res.ok || !data.success || !data.verified) {
-        throw new Error(data.error || "Invalid code. Please try again.");
+        throw new Error(data.error || "Invalid SMS verification code. Please try again.");
       }
 
       verifiedPhone = phone;
       verifiedToken = data.token;
 
-      // Proceed to Draft Checkout with verified phone and token
+      // Proceed to Draft Checkout with verified phone, token, and coupon
       await executeDraftCheckout(phone, data.token);
     } catch (err) {
       setOtpError(err.message || "Verification failed. Please re-enter the code.");
       if (verifyBtn) {
         verifyBtn.disabled = false;
-        verifyBtn.textContent = "Verify & Proceed to Checkout →";
+        verifyBtn.textContent = "Verify SMS & Place Order →";
       }
     }
   }
@@ -683,6 +948,8 @@
           })),
           phone: phone || undefined,
           otpToken: otpToken || undefined,
+          couponCode: activeCoupon ? activeCoupon.code : undefined,
+          couponDiscount: activeCoupon ? activeCoupon.discountAmount : 0,
         };
       } else {
         const { variantId, quantity, price, title } = activeProduct;
@@ -694,6 +961,8 @@
           title,
           phone: phone || undefined,
           otpToken: otpToken || undefined,
+          couponCode: activeCoupon ? activeCoupon.code : undefined,
+          couponDiscount: activeCoupon ? activeCoupon.discountAmount : 0,
         };
       }
 

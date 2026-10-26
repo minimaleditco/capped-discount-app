@@ -270,6 +270,14 @@ export interface PartialCodSettings {
   whatsappApiKey?: string;
   whatsappApiUrl?: string;
   whatsappSender?: string;
+  prepaidDiscountEnabled?: boolean;
+  prepaidDiscountType?: "fixed" | "percentage";
+  prepaidDiscountValue?: number;
+  prepaidDiscountBadge?: string;
+  smsProvider?: "simulator" | "fast2sms" | "twilio";
+  smsApiKey?: string;
+  smsSenderId?: string;
+  availableCoupons?: string;
   updatedAt: number;
 }
 
@@ -294,6 +302,12 @@ export interface PartialCodDepositRecord {
 const memorySettings = new Map<string, PartialCodSettings>();
 const memoryDeposits = new Map<string, PartialCodDepositRecord>();
 
+const DEFAULT_COUPONS = JSON.stringify([
+  { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
+  { code: "FLAT50", title: "Flat ₹50 OFF", type: "fixed", value: 50, minSubtotal: 299 },
+  { code: "CAP20", title: "20% OFF (Max ₹200)", type: "percentage", value: 20, maxCap: 200, minSubtotal: 500 },
+]);
+
 const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
   shop,
   enabled: true,
@@ -311,6 +325,14 @@ const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
   whatsappApiKey: "",
   whatsappApiUrl: "",
   whatsappSender: "",
+  prepaidDiscountEnabled: true,
+  prepaidDiscountType: "percentage",
+  prepaidDiscountValue: 5,
+  prepaidDiscountBadge: "⚡ Extra 5% OFF on Prepaid",
+  smsProvider: "simulator",
+  smsApiKey: "",
+  smsSenderId: "",
+  availableCoupons: DEFAULT_COUPONS,
   updatedAt: Date.now(),
 });
 
@@ -344,6 +366,14 @@ export async function getPartialCodSettings(shop: string): Promise<PartialCodSet
       whatsappApiKey: row.whatsappApiKey || "",
       whatsappApiUrl: row.whatsappApiUrl || "",
       whatsappSender: row.whatsappSender || "",
+      prepaidDiscountEnabled: (row as any).prepaidDiscountEnabled ?? true,
+      prepaidDiscountType: ((row as any).prepaidDiscountType as "fixed" | "percentage") || "percentage",
+      prepaidDiscountValue: Number((row as any).prepaidDiscountValue ?? 5),
+      prepaidDiscountBadge: (row as any).prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid",
+      smsProvider: ((row as any).smsProvider as "simulator" | "fast2sms" | "twilio") || "simulator",
+      smsApiKey: (row as any).smsApiKey || "",
+      smsSenderId: (row as any).smsSenderId || "",
+      availableCoupons: (row as any).availableCoupons || DEFAULT_COUPONS,
       updatedAt: row.updatedAt.getTime(),
     };
   } catch (err) {
@@ -376,6 +406,14 @@ export async function savePartialCodSettings(settings: PartialCodSettings): Prom
         whatsappApiKey: settings.whatsappApiKey || "",
         whatsappApiUrl: settings.whatsappApiUrl || "",
         whatsappSender: settings.whatsappSender || "",
+        prepaidDiscountEnabled: settings.prepaidDiscountEnabled ?? true,
+        prepaidDiscountType: settings.prepaidDiscountType || "percentage",
+        prepaidDiscountValue: settings.prepaidDiscountValue ?? 5,
+        prepaidDiscountBadge: settings.prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid",
+        smsProvider: settings.smsProvider || "simulator",
+        smsApiKey: settings.smsApiKey || "",
+        smsSenderId: settings.smsSenderId || "",
+        availableCoupons: settings.availableCoupons || DEFAULT_COUPONS,
       },
       update: {
         enabled: settings.enabled,
@@ -393,6 +431,14 @@ export async function savePartialCodSettings(settings: PartialCodSettings): Prom
         whatsappApiKey: settings.whatsappApiKey || "",
         whatsappApiUrl: settings.whatsappApiUrl || "",
         whatsappSender: settings.whatsappSender || "",
+        prepaidDiscountEnabled: settings.prepaidDiscountEnabled ?? true,
+        prepaidDiscountType: settings.prepaidDiscountType || "percentage",
+        prepaidDiscountValue: settings.prepaidDiscountValue ?? 5,
+        prepaidDiscountBadge: settings.prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid",
+        smsProvider: settings.smsProvider || "simulator",
+        smsApiKey: settings.smsApiKey || "",
+        smsSenderId: settings.smsSenderId || "",
+        availableCoupons: settings.availableCoupons || DEFAULT_COUPONS,
       },
     });
     return true;

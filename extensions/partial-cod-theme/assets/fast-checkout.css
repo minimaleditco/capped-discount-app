@@ -465,3 +465,199 @@
 .pcod-otp-resend-btn:hover {
   color: #2563EB;
 }
+
+/* Coupon & Promo Code Section */
+.pcod-coupon-section {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.pcod-coupon-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pcod-coupon-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.pcod-coupon-input {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0F172A;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: border-color 0.15s ease;
+}
+
+.pcod-coupon-input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.pcod-coupon-apply-btn {
+  padding: 9px 16px;
+  background: #0F172A;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.pcod-coupon-apply-btn:hover {
+  background: #1E293B;
+}
+
+.pcod-coupon-apply-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pcod-coupon-applied-msg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #DCFCE7;
+  border: 1px solid #86EFAC;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #166534;
+}
+
+.pcod-coupon-remove-btn {
+  background: none;
+  border: none;
+  color: #DC2626;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: 8px;
+}
+
+.pcod-available-coupons-wrap {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.pcod-available-coupons-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.pcod-coupon-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pcod-coupon-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1E293B;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pcod-coupon-chip:hover {
+  border-color: #2563EB;
+  color: #2563EB;
+  background: #EFF6FF;
+  transform: translateY(-1px);
+}
+
+.pcod-coupon-chip.active {
+  background: #0F172A;
+  color: #FFFFFF;
+  border-color: #0F172A;
+}
+
+.pcod-coupon-chip-code {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pcod-coupon-chip-badge {
+  font-size: 10.5px;
+  color: #059669;
+  background: #D1FAE5;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.pcod-coupon-chip.active .pcod-coupon-chip-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+}
+
+/* Prepaid Extra Discount Tag & Price Stacking */
+.pcod-prepaid-tag {
+  background: linear-gradient(135deg, #FEF08A 0%, #FDE047 100%);
+  color: #854D0E;
+  border: 1px solid #FACC15;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 2px rgba(234, 179, 8, 0.2);
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.pcod-price-stack {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pcod-original-price {
+  font-size: 13px;
+  color: #94A3B8;
+  text-decoration: line-through;
+  font-weight: 500;
+}
+
+.pcod-save-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #15803D;
+  background: #DCFCE7;
+  border: 1px solid #86EFAC;
+  padding: 2px 6px;
+  border-radius: 4px;
+}

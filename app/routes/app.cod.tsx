@@ -23,6 +23,7 @@ import {
 import { authenticate } from "../shopify.server";
 import { sendToMetaCAPI } from "../services/meta-capi.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
+import { sendSmsOtp } from "../services/sms.server";
 import {
   getPartialCodSettings,
   savePartialCodSettings,
@@ -163,6 +164,42 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
+    if (intent === "test_sms") {
+      const testPhone = (formData.get("testSmsPhone") as string) || "";
+      const smsProvider = (formData.get("smsProvider") as any) || "simulator";
+      const smsApiKey = (formData.get("smsApiKey") as string) || "";
+      const smsSenderId = (formData.get("smsSenderId") as string) || "";
+
+      if (!testPhone || testPhone.replace(/[^0-9]/g, "").length < 10) {
+        return json<ActionData>(
+          { success: false, errors: ["Please enter a valid 10-digit mobile number for the test SMS."] },
+          { status: 400 }
+        );
+      }
+
+      // Persist credentials for test
+      const current = await getPartialCodSettings(shop);
+      await savePartialCodSettings({
+        ...current,
+        smsProvider,
+        smsApiKey,
+        smsSenderId,
+      });
+
+      const res = await sendSmsOtp(shop, testPhone, "123456");
+      if (res.success) {
+        return json<ActionData>({
+          success: true,
+          message: `Test SMS dispatched successfully via ${res.provider.toUpperCase()}! (Message ID: ${res.messageId || "N/A"})`,
+        });
+      } else {
+        return json<ActionData>(
+          { success: false, errors: [res.error || "Failed to dispatch test SMS."] },
+          { status: 400 }
+        );
+      }
+    }
+
     const enabled = formData.get("enabled") === "true";
     const depositType = (formData.get("depositType") as "fixed" | "percentage") || "percentage";
     const depositValue = parseFloat(formData.get("depositValue") as string) || 10;
@@ -178,6 +215,15 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     const whatsappApiKey = (formData.get("whatsappApiKey") as string) || "";
     const whatsappApiUrl = (formData.get("whatsappApiUrl") as string) || "";
     const whatsappSender = (formData.get("whatsappSender") as string) || "";
+
+    const prepaidDiscountEnabled = formData.get("prepaidDiscountEnabled") === "true";
+    const prepaidDiscountType = (formData.get("prepaidDiscountType") as "fixed" | "percentage") || "percentage";
+    const prepaidDiscountValue = parseFloat(formData.get("prepaidDiscountValue") as string) || 5;
+    const prepaidDiscountBadge = (formData.get("prepaidDiscountBadge") as string) || "⚡ Extra 5% OFF on Prepaid";
+    const smsProvider = (formData.get("smsProvider") as any) || "simulator";
+    const smsApiKey = (formData.get("smsApiKey") as string) || "";
+    const smsSenderId = (formData.get("smsSenderId") as string) || "";
+    const availableCoupons = (formData.get("availableCoupons") as string) || "[]";
 
     const errors: string[] = [];
     if (depositValue <= 0) {
@@ -214,6 +260,14 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       whatsappApiKey,
       whatsappApiUrl,
       whatsappSender,
+      prepaidDiscountEnabled,
+      prepaidDiscountType,
+      prepaidDiscountValue,
+      prepaidDiscountBadge,
+      smsProvider,
+      smsApiKey,
+      smsSenderId,
+      availableCoupons,
       updatedAt: Date.now(),
     };
 
@@ -221,7 +275,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
 
     return json<ActionData>({
       success: true,
-      message: "Partial COD & Meta CAPI settings saved successfully!",
+      message: "Partial COD, SMS OTP & Prepaid Discount settings saved successfully!",
     });
   } catch (err: any) {
     return json<ActionData>(
@@ -263,6 +317,40 @@ export default function PartialCodPage() {
   const [whatsappSender, setWhatsappSender] = useState<string>(settings.whatsappSender || "");
   const [testPhone, setTestPhone] = useState<string>("");
 
+  // Extra Prepaid Discount State
+  const [prepaidDiscountEnabled, setPrepaidDiscountEnabled] = useState<boolean>(
+    settings.prepaidDiscountEnabled ?? true
+  );
+  const [prepaidDiscountType, setPrepaidDiscountType] = useState<"fixed" | "percentage">(
+    settings.prepaidDiscountType || "percentage"
+  );
+  const [prepaidDiscountValue, setPrepaidDiscountValue] = useState<string>(
+    settings.prepaidDiscountValue ? settings.prepaidDiscountValue.toString() : "5"
+  );
+  const [prepaidDiscountBadge, setPrepaidDiscountBadge] = useState<string>(
+    settings.prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid"
+  );
+
+  // Carrier SMS Gateway State
+  const [smsProvider, setSmsProvider] = useState<string>(settings.smsProvider || "simulator");
+  const [smsApiKey, setSmsApiKey] = useState<string>(settings.smsApiKey || "");
+  const [smsSenderId, setSmsSenderId] = useState<string>(settings.smsSenderId || "");
+  const [testSmsPhone, setTestSmsPhone] = useState<string>("");
+
+  // Available Promotional Coupons State
+  const [availableCoupons, setAvailableCoupons] = useState<string>(
+    settings.availableCoupons ||
+      JSON.stringify(
+        [
+          { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
+          { code: "FLAT50", title: "Flat ₹50 OFF", type: "fixed", value: 50, minSubtotal: 299 },
+          { code: "CAP20", title: "20% OFF (Max ₹200)", type: "percentage", value: 20, maxCap: 200, minSubtotal: 500 },
+        ],
+        null,
+        2
+      )
+  );
+
   // Simulation calculation on sample 1000 order
   const simulation = useMemo(() => {
     const sampleTotal = 1000;
@@ -294,6 +382,14 @@ export default function PartialCodPage() {
     fd.append("whatsappApiKey", whatsappApiKey);
     fd.append("whatsappApiUrl", whatsappApiUrl);
     fd.append("whatsappSender", whatsappSender);
+    fd.append("prepaidDiscountEnabled", prepaidDiscountEnabled.toString());
+    fd.append("prepaidDiscountType", prepaidDiscountType);
+    fd.append("prepaidDiscountValue", prepaidDiscountValue);
+    fd.append("prepaidDiscountBadge", prepaidDiscountBadge);
+    fd.append("smsProvider", smsProvider);
+    fd.append("smsApiKey", smsApiKey);
+    fd.append("smsSenderId", smsSenderId);
+    fd.append("availableCoupons", availableCoupons);
     submit(fd, { method: "post" });
   }, [
     enabled,
@@ -311,8 +407,26 @@ export default function PartialCodPage() {
     whatsappApiKey,
     whatsappApiUrl,
     whatsappSender,
+    prepaidDiscountEnabled,
+    prepaidDiscountType,
+    prepaidDiscountValue,
+    prepaidDiscountBadge,
+    smsProvider,
+    smsApiKey,
+    smsSenderId,
+    availableCoupons,
     submit,
   ]);
+
+  const handleTestSms = useCallback(() => {
+    const fd = new FormData();
+    fd.append("intent", "test_sms");
+    fd.append("testSmsPhone", testSmsPhone);
+    fd.append("smsProvider", smsProvider);
+    fd.append("smsApiKey", smsApiKey);
+    fd.append("smsSenderId", smsSenderId);
+    submit(fd, { method: "post" });
+  }, [testSmsPhone, smsProvider, smsApiKey, smsSenderId, submit]);
 
   const handleTestMetaCapi = useCallback(() => {
     const fd = new FormData();
@@ -713,6 +827,198 @@ export default function PartialCodPage() {
                       </Box>
                     </BlockStack>
                   </FormLayout>
+                </BlockStack>
+              </Card>
+
+              {/* Extra Prepaid Discount Incentive */}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        Extra Prepaid Order Discount
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        Encourage buyers to choose 100% upfront online payment instead of COD with an extra discount and prominent banner
+                      </Text>
+                    </BlockStack>
+                    <Badge tone={prepaidDiscountEnabled ? "success" : "attention"}>
+                      {prepaidDiscountEnabled ? "PREPAID SAVINGS ON" : "PREPAID SAVINGS OFF"}
+                    </Badge>
+                  </InlineStack>
+
+                  <Checkbox
+                    label="Offer Extra Discount on Full Prepaid Orders"
+                    checked={prepaidDiscountEnabled}
+                    onChange={(newVal) => setPrepaidDiscountEnabled(newVal)}
+                    helpText="Applies an extra discount when the customer selects Option 1 (Pay Full Amount Now) in the checkout pop-up."
+                  />
+
+                  {prepaidDiscountEnabled && (
+                    <FormLayout>
+                      <FormLayout.Group>
+                        <Select
+                          label="Prepaid Discount Type"
+                          options={[
+                            { label: "Percentage (%) Off", value: "percentage" },
+                            { label: "Fixed Amount (₹) Off", value: "fixed" },
+                          ]}
+                          value={prepaidDiscountType}
+                          onChange={(val) => setPrepaidDiscountType(val as "fixed" | "percentage")}
+                        />
+                        <TextField
+                          label="Prepaid Discount Value"
+                          type="number"
+                          value={prepaidDiscountValue}
+                          onChange={(val) => setPrepaidDiscountValue(val)}
+                          autoComplete="off"
+                          prefix={prepaidDiscountType === "fixed" ? "₹" : undefined}
+                          suffix={prepaidDiscountType === "percentage" ? "%" : undefined}
+                          helpText="e.g. 5 for 5% OFF or 50 for flat ₹50 OFF"
+                        />
+                      </FormLayout.Group>
+
+                      <TextField
+                        label="Top-Right Corner Badge Tag"
+                        value={prepaidDiscountBadge}
+                        onChange={(val) => setPrepaidDiscountBadge(val)}
+                        autoComplete="off"
+                        placeholder="⚡ Extra 5% OFF on Prepaid"
+                        helpText="Rendered on the top-right corner of Option 1 (Full Prepaid) inside the storefront modal."
+                      />
+                    </FormLayout>
+                  )}
+                </BlockStack>
+              </Card>
+
+              {/* Carrier SMS OTP Gateway */}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        Carrier SMS OTP Gateway
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        Deliver 6-digit OTP codes via direct cellular SMS to buyer phones (works seamlessly across India & globally)
+                      </Text>
+                    </BlockStack>
+                    <Badge tone={smsProvider === "simulator" ? "info" : "success"}>
+                      {smsProvider === "simulator" ? "SMS SIMULATOR" : smsProvider.toUpperCase() + " LIVE"}
+                    </Badge>
+                  </InlineStack>
+
+                  <FormLayout>
+                    <Select
+                      label="SMS Delivery Provider"
+                      options={[
+                        { label: "Built-in Sandbox Simulator (Zero cost, testing with 123456)", value: "simulator" },
+                        { label: "Fast2SMS (Recommended for India - ₹0.15/SMS, instant OTP API)", value: "fast2sms" },
+                        { label: "Twilio SMS (Global cellular SMS carrier)", value: "twilio" },
+                      ]}
+                      value={smsProvider}
+                      onChange={(val) => setSmsProvider(val)}
+                      helpText={
+                        smsProvider === "fast2sms"
+                          ? "Fast2SMS delivers OTPs directly to Indian mobile numbers via Quick OTP without needing DLT approval for testing."
+                          : smsProvider === "simulator"
+                          ? "Sandbox mode: Displays the OTP code in the terminal logs and accepts 123456 for instant testing."
+                          : "Twilio delivers carrier SMS globally."
+                      }
+                    />
+
+                    {smsProvider === "fast2sms" && (
+                      <BlockStack gap="300">
+                        <TextField
+                          label="Fast2SMS Authorization API Key"
+                          type="password"
+                          value={smsApiKey}
+                          onChange={(val) => setSmsApiKey(val)}
+                          autoComplete="off"
+                          placeholder="Paste Fast2SMS authorization key from fast2sms.com"
+                          helpText="Obtain from fast2sms.com -> Dev API -> Authorization Key"
+                        />
+                        <TextField
+                          label="Fast2SMS Sender ID / Entity ID (Optional)"
+                          value={smsSenderId}
+                          onChange={(val) => setSmsSenderId(val)}
+                          autoComplete="off"
+                          placeholder="FSTSMS (Default)"
+                        />
+                      </BlockStack>
+                    )}
+
+                    {smsProvider === "twilio" && (
+                      <BlockStack gap="300">
+                        <TextField
+                          label="Twilio Auth Token"
+                          type="password"
+                          value={smsApiKey}
+                          onChange={(val) => setSmsApiKey(val)}
+                          autoComplete="off"
+                          placeholder="Your Twilio Auth Token"
+                        />
+                        <TextField
+                          label="Twilio Sender Phone Number"
+                          value={smsSenderId}
+                          onChange={(val) => setSmsSenderId(val)}
+                          autoComplete="off"
+                          placeholder="+1xxxxxxxxxx"
+                        />
+                      </BlockStack>
+                    )}
+
+                    <Divider />
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">
+                        Test SMS Dispatch
+                      </Text>
+                      <TextField
+                        label="Test Mobile Number"
+                        value={testSmsPhone}
+                        onChange={(val) => setTestSmsPhone(val)}
+                        autoComplete="off"
+                        placeholder="e.g. 9876543210"
+                        helpText="Enter a 10-digit mobile number to verify live SMS delivery."
+                      />
+                      <Box paddingBlockStart="200">
+                        <Button
+                          onClick={handleTestSms}
+                          loading={isSaving}
+                          disabled={!testSmsPhone || testSmsPhone.replace(/[^0-9]/g, "").length < 10}
+                        >
+                          Send Test SMS OTP
+                        </Button>
+                      </Box>
+                    </BlockStack>
+                  </FormLayout>
+                </BlockStack>
+              </Card>
+
+              {/* Promotional Coupon Codes & Deal Chips */}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        Pop-up Coupon Codes & Deal Chips
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        Configure promotional discount codes presented as one-click chips in the checkout modal
+                      </Text>
+                    </BlockStack>
+                    <Badge tone="info">PROMO CHIPS</Badge>
+                  </InlineStack>
+
+                  <TextField
+                    label="Available Promotional Coupons (JSON Array)"
+                    value={availableCoupons}
+                    onChange={(val) => setAvailableCoupons(val)}
+                    multiline={6}
+                    autoComplete="off"
+                    helpText='Define coupon options displayed to customers. Supported properties: "code", "title", "type" ("percentage" | "fixed"), "value", "maxCap", "minSubtotal".'
+                  />
                 </BlockStack>
               </Card>
             </BlockStack>
