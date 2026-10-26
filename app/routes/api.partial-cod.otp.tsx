@@ -58,6 +58,18 @@ async function handleOtpRequest(request: Request) {
 
     const settings = await getPartialCodSettings(shop);
 
+    // 0. ACTION: CHECK STATUS / REQUIREMENT
+    if (actionType === "check" || actionType === "status") {
+      return json(
+        {
+          success: true,
+          required: Boolean(settings.whatsappEnabled),
+          provider: settings.whatsappProvider || "simulator",
+        },
+        { headers: corsHeaders }
+      );
+    }
+
     // If OTP is not enabled, mark as not required
     if (!settings.whatsappEnabled) {
       return json(

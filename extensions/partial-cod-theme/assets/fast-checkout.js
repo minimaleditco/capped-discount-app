@@ -640,9 +640,15 @@
 
       // Check if WhatsApp OTP is required
       if (!verifiedToken) {
-        const checkRes = await fetch(`${BACKEND_URL}/api/partial-cod/otp?action=send&shop=${encodeURIComponent(shop)}`);
-        const checkData = await checkRes.json();
-        if (checkData.required) {
+        try {
+          const checkRes = await fetch(`${BACKEND_URL}/api/partial-cod/otp?action=check&shop=${encodeURIComponent(shop)}`);
+          const checkData = await checkRes.json();
+          if (checkData.required) {
+            showOtpStep();
+            return;
+          }
+        } catch (checkErr) {
+          console.warn("[OTP Check API]:", checkErr);
           showOtpStep();
           return;
         }
