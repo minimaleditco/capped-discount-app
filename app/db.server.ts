@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { Session } from "@shopify/shopify-api";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -80,6 +81,173 @@ if (process.env.NODE_ENV !== "production") {
 
 export const db = prisma;
 export default prisma;
+
+// ============================================================================
+// Resilient PostgreSQL Session Storage for Shopify
+// Provides persistent storage in PostgreSQL via Prisma with fault-tolerant
+// fallback caching to guarantee zero boot-time crashes (502 Bad Gateway prevention)
+// ============================================================================
+
+const memorySessions = new Map<string, Session>();
+
+export class PrismaPostgresSessionStorage {
+  async storeSession(session: Session): Promise<boolean> {
+    memorySessions.set(session.id, session);
+    try {
+      const data = {
+        id: session.id,
+        shop: session.shop,
+        state: session.state,
+        isOnline: session.isOnline,
+        scope: session.scope || null,
+        expires: session.expires || null,
+        accessToken: session.accessToken,
+        userId: session.onlineAccessInfo?.associated_user?.id
+          ? BigInt(session.onlineAccessInfo.associated_user.id)
+          : null,
+        firstName: session.onlineAccessInfo?.associated_user?.first_name || null,
+        lastName: session.onlineAccessInfo?.associated_user?.last_name || null,
+        email: session.onlineAccessInfo?.associated_user?.email || null,
+        accountOwner: Boolean(session.onlineAccessInfo?.associated_user?.account_owner),
+        locale: session.onlineAccessInfo?.associated_user?.locale || null,
+        collaborator: Boolean(session.onlineAccessInfo?.associated_user?.collaborator),
+        emailVerified: Boolean(session.onlineAccessInfo?.associated_user?.email_verified),
+        refreshToken: (session as any).refreshToken || null,
+        refreshTokenExpires: (session as any).refreshTokenExpires || null,
+      };
+
+      await prisma.session.upsert({
+        where: { id: session.id },
+        update: data,
+        create: data,
+      });
+      return true;
+    } catch (err) {
+      console.warn("[PostgreSQL Session Warning] Storing session in fallback memory cache:", (err as any)?.message || err);
+      return true;
+    }
+  }
+
+  async loadSession(id: string): Promise<Session | undefined> {
+    try {
+      const row = await prisma.session.findUnique({
+        where: { id },
+      });
+      if (row) {
+        const sessionObj: any = {
+          id: row.id,
+          shop: row.shop,
+          state: row.state,
+          isOnline: row.isOnline,
+          scope: row.scope || undefined,
+          expires: row.expires || undefined,
+          accessToken: row.accessToken,
+        };
+        if (row.userId) {
+          sessionObj.onlineAccessInfo = {
+            associated_user: {
+              id: Number(row.userId),
+              first_name: row.firstName || "",
+              last_name: row.lastName || "",
+              email: row.email || "",
+              account_owner: row.accountOwner,
+              locale: row.locale || "",
+              collaborator: row.collaborator || false,
+              email_verified: row.emailVerified || false,
+            },
+          };
+        }
+        if (row.refreshToken) {
+          sessionObj.refreshToken = row.refreshToken;
+        }
+        if (row.refreshTokenExpires) {
+          sessionObj.refreshTokenExpires = row.refreshTokenExpires;
+        }
+        const s = new Session(sessionObj);
+        memorySessions.set(id, s);
+        return s;
+      }
+    } catch (err) {
+      console.warn("[PostgreSQL Session Warning] Reading session from fallback memory cache:", (err as any)?.message || err);
+    }
+    return memorySessions.get(id);
+  }
+
+  async deleteSession(id: string): Promise<boolean> {
+    memorySessions.delete(id);
+    try {
+      await prisma.session.deleteMany({
+        where: { id },
+      });
+      return true;
+    } catch (err) {
+      console.warn("[PostgreSQL Session Warning] Deleting session fallback:", (err as any)?.message || err);
+      return true;
+    }
+  }
+
+  async deleteSessions(ids: string[]): Promise<boolean> {
+    for (const id of ids) {
+      memorySessions.delete(id);
+    }
+    try {
+      await prisma.session.deleteMany({
+        where: { id: { in: ids } },
+      });
+      return true;
+    } catch (err) {
+      console.warn("[PostgreSQL Session Warning] Deleting sessions fallback:", (err as any)?.message || err);
+      return true;
+    }
+  }
+
+  async findSessionsByShop(shop: string): Promise<Session[]> {
+    const cleanShop = normalizeShopDomain(shop);
+    try {
+      const rows = await prisma.session.findMany({
+        where: { shop: cleanShop },
+      });
+      if (rows && rows.length > 0) {
+        return rows.map((row) => {
+          const sessionObj: any = {
+            id: row.id,
+            shop: row.shop,
+            state: row.state,
+            isOnline: row.isOnline,
+            scope: row.scope || undefined,
+            expires: row.expires || undefined,
+            accessToken: row.accessToken,
+          };
+          if (row.userId) {
+            sessionObj.onlineAccessInfo = {
+              associated_user: {
+                id: Number(row.userId),
+                first_name: row.firstName || "",
+                last_name: row.lastName || "",
+                email: row.email || "",
+                account_owner: row.accountOwner,
+                locale: row.locale || "",
+                collaborator: row.collaborator || false,
+                email_verified: row.emailVerified || false,
+              },
+            };
+          }
+          return new Session(sessionObj);
+        });
+      }
+    } catch (err) {
+      console.warn("[PostgreSQL Session Warning] Finding sessions fallback:", (err as any)?.message || err);
+    }
+
+    const matches: Session[] = [];
+    for (const s of memorySessions.values()) {
+      if (normalizeShopDomain(s.shop) === cleanShop) {
+        matches.push(s);
+      }
+    }
+    return matches;
+  }
+}
 
 // ============================================================================
 // Types
