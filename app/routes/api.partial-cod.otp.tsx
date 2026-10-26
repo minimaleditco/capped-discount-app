@@ -143,7 +143,7 @@ async function handleOtpRequest(request: Request) {
 
     // 2. ACTION: VERIFY OTP
     if (actionType === "verify") {
-      const otp = String(body.otp || "").trim();
+      const otp = String(body.otp || body.code || "").trim();
       if (!otp) {
         return json(
           { success: false, error: "Please enter the 6-digit OTP code." },
@@ -168,7 +168,7 @@ async function handleOtpRequest(request: Request) {
           success: true,
           verified: true,
           token: verifyResult.token,
-          message: "WhatsApp number verified successfully!",
+          message: "Mobile number verified successfully!",
         },
         { headers: corsHeaders }
       );
