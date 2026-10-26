@@ -127,6 +127,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const settings = await getPartialCodSettings(shopToUse);
     const customerPhone = String(body.phone || body.customerPhone || "").replace(/[^0-9]/g, "");
     const otpToken = String(body.otpToken || body.token || "").trim();
+    const couponCode = String(body.couponCode || "").trim().toUpperCase();
+    const couponDiscount = Math.max(0, parseFloat(String(body.couponDiscount || 0)));
 
     if (settings.whatsappEnabled) {
       const isVerified = await validateVerificationToken(shopToUse, customerPhone, otpToken);
@@ -134,7 +136,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json(
           {
             success: false,
-            error: "Mobile number verification required. Please verify the OTP sent to your WhatsApp number before placing a Partial COD order.",
+            error: "Mobile number verification required. Please verify the OTP sent to your mobile number before placing a Partial COD order.",
             requiresOtp: true,
           },
           { status: 403, headers: corsHeaders }
@@ -142,10 +144,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    // Apply coupon discount to subtotal if provided
+    const effectiveTotalPrice = Math.max(0, Math.round((totalPrice - couponDiscount) * 100) / 100);
+
     // Determine dynamic risk-based deposit and remaining balance
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const evaluation = await evaluateDepositRules(shop, {
-      totalPrice,
+      totalPrice: effectiveTotalPrice,
       currency: "INR",
       lineItems: rawItems.map((it: any) => ({
         title: it.title,
@@ -162,9 +167,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (body.deposit && Number(body.deposit) > 0) {
       deposit = Math.max(deposit, Number(body.deposit));
     }
-    // Ensure deposit does not exceed total
-    deposit = Math.min(totalPrice, deposit);
-    const balance = Math.max(0, Math.round((totalPrice - deposit) * 100) / 100);
+    // Ensure deposit does not exceed effective total
+    deposit = Math.min(effectiveTotalPrice, deposit);
+    const balance = Math.max(0, Math.round((effectiveTotalPrice - deposit) * 100) / 100);
 
     const draftOrderPayload: any = {
       lineItems: lineItemsInput,
@@ -177,14 +182,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         evaluation.matchedRule
           ? `Rule: ${evaluation.matchedRule.conditionType}`
           : "Rule: Store Default",
-        ...(customerPhone ? [`WhatsApp Verified: +${customerPhone}`] : []),
+        ...(customerPhone ? [`SMS Verified: +91${customerPhone}`] : []),
+        ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
       ],
-      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}${customerPhone ? `\n• Verified WhatsApp: +${customerPhone}` : ""}`,
+      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}${couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""}${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`,
       customAttributes: [
         { key: "Payment Status", value: "Partially Paid" },
         { key: "Advance Deposit Paid", value: `₹${deposit.toFixed(2)}` },
         { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
-        ...(customerPhone ? [{ key: "Verified WhatsApp", value: customerPhone }] : []),
+        ...(customerPhone ? [{ key: "Verified Mobile", value: customerPhone }] : []),
+        ...(couponCode ? [{ key: "Coupon Code", value: couponCode }, { key: "Coupon Discount", value: `₹${couponDiscount.toFixed(2)}` }] : []),
         { key: "Deposit Rule Applied", value: evaluation.ruleSummary },
         { key: "partial_cod_order", value: "true" },
       ],

@@ -47,9 +47,17 @@ model PartialCodSettings {
   whatsappEnabled   Boolean  @default(false)
   whatsappProvider  String   @default("simulator")
   whatsappApiKey    String?  @default("")
-  whatsappApiUrl    String?  @default("")
-  whatsappSender    String?  @default("")
-  createdAt         DateTime @default(now())
+  whatsappApiUrl         String?  @default("")
+  whatsappSender         String?  @default("")
+  prepaidDiscountEnabled Boolean  @default(true)
+  prepaidDiscountType    String   @default("percentage")
+  prepaidDiscountValue   Float    @default(5)
+  prepaidDiscountBadge   String   @default("⚡ Extra 5% OFF on Prepaid")
+  smsProvider            String   @default("simulator")
+  smsApiKey              String?  @default("")
+  smsSenderId            String?  @default("")
+  availableCoupons       String?  @default("[{\"code\":\"SAVE10\",\"title\":\"10% OFF on all items\",\"type\":\"percentage\",\"value\":10,\"maxCap\":100},{\"code\":\"FLAT50\",\"title\":\"Flat ₹50 OFF\",\"type\":\"fixed\",\"value\":50,\"minSubtotal\":299}]")
+  createdAt              DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
 
