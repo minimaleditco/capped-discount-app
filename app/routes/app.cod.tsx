@@ -21,6 +21,7 @@ import {
   IndexTable,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { sendToMetaCAPI } from "../services/meta-capi.server";
 import {
   getPartialCodSettings,
   savePartialCodSettings,
@@ -61,6 +62,68 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     const formData = await request.formData();
+    const intent = (formData.get("intent") as string) || "save";
+
+    if (intent === "test_meta_capi") {
+      const metaPixelId = (formData.get("metaPixelId") as string) || "";
+      const metaCapiToken = (formData.get("metaCapiToken") as string) || "";
+      const testEventCode = (formData.get("testEventCode") as string) || "";
+
+      if (!metaPixelId || !metaCapiToken) {
+        return json<ActionData>(
+          { success: false, errors: ["Both Meta Pixel ID and CAPI Access Token are required to send a test event."] },
+          { status: 400 }
+        );
+      }
+
+      // Temporarily persist credentials for the test dispatch
+      const current = await getPartialCodSettings(shop);
+      await savePartialCodSettings({
+        ...current,
+        metaPixelId,
+        metaCapiToken,
+      });
+
+      const testResult = await sendToMetaCAPI(
+        shop,
+        {
+          orderId: "test_" + Date.now(),
+          orderName: "#TEST-PARTIAL-COD",
+          currency: "INR",
+          fullValue: 2499,
+          depositValue: 250,
+          balanceValue: 2249,
+          createdAt: new Date().toISOString(),
+          customer: {
+            email: "test_customer@example.com",
+            phone: "9876543210",
+            firstName: "Rahul",
+            lastName: "Sharma",
+            city: "New Delhi",
+            province: "Delhi",
+            zip: "110001",
+            country: "IN",
+          },
+          lineItems: [
+            { id: "test_item_1", sku: "SAMPLE-SKU-01", title: "Sample Product", quantity: 1, price: 2499 },
+          ],
+        },
+        { testEventCode: testEventCode.trim() || undefined }
+      );
+
+      if (testResult.success) {
+        return json<ActionData>({
+          success: true,
+          message: `Meta CAPI test event successfully received by Meta! Events Received: ${testResult.eventsReceived}, FBTrace ID: ${testResult.fbtraceId}`,
+        });
+      } else {
+        return json<ActionData>(
+          { success: false, errors: [testResult.error || testResult.reason || "Meta CAPI test failed."] },
+          { status: 400 }
+        );
+      }
+    }
+
     const enabled = formData.get("enabled") === "true";
     const depositType = (formData.get("depositType") as "fixed" | "percentage") || "percentage";
     const depositValue = parseFloat(formData.get("depositValue") as string) || 10;
@@ -69,6 +132,8 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     const apiKey = (formData.get("apiKey") as string) || "";
     const apiSecret = (formData.get("apiSecret") as string) || "";
     const autoCancelMinutes = parseInt(formData.get("autoCancelMinutes") as string, 10) || 30;
+    const metaPixelId = (formData.get("metaPixelId") as string) || "";
+    const metaCapiToken = (formData.get("metaCapiToken") as string) || "";
 
     const errors: string[] = [];
     if (depositValue <= 0) {
@@ -95,6 +160,8 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       apiKey,
       apiSecret,
       autoCancelMinutes,
+      metaPixelId,
+      metaCapiToken,
       updatedAt: Date.now(),
     };
 
@@ -102,7 +169,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
 
     return json<ActionData>({
       success: true,
-      message: "Partial COD settings saved successfully!",
+      message: "Partial COD & Meta CAPI settings saved successfully!",
     });
   } catch (err: any) {
     return json<ActionData>(
@@ -132,6 +199,10 @@ export default function PartialCodPage() {
   const [autoCancelMinutes, setAutoCancelMinutes] = useState<string>(
     settings.autoCancelMinutes ? settings.autoCancelMinutes.toString() : "30"
   );
+  const [metaPixelId, setMetaPixelId] = useState<string>(settings.metaPixelId || "");
+  const [metaCapiToken, setMetaCapiToken] = useState<string>(settings.metaCapiToken || "");
+  const [showToken, setShowToken] = useState<boolean>(false);
+  const [testEventCode, setTestEventCode] = useState<string>("");
 
   // Simulation calculation on sample 1000 order
   const simulation = useMemo(() => {
@@ -157,6 +228,8 @@ export default function PartialCodPage() {
     fd.append("apiKey", apiKey);
     fd.append("apiSecret", apiSecret);
     fd.append("autoCancelMinutes", autoCancelMinutes);
+    fd.append("metaPixelId", metaPixelId);
+    fd.append("metaCapiToken", metaCapiToken);
     submit(fd, { method: "post" });
   }, [
     enabled,
@@ -167,8 +240,19 @@ export default function PartialCodPage() {
     apiKey,
     apiSecret,
     autoCancelMinutes,
+    metaPixelId,
+    metaCapiToken,
     submit,
   ]);
+
+  const handleTestMetaCapi = useCallback(() => {
+    const fd = new FormData();
+    fd.append("intent", "test_meta_capi");
+    fd.append("metaPixelId", metaPixelId);
+    fd.append("metaCapiToken", metaCapiToken);
+    fd.append("testEventCode", testEventCode);
+    submit(fd, { method: "post" });
+  }, [metaPixelId, metaCapiToken, testEventCode, submit]);
 
   return (
     <Page
@@ -376,6 +460,84 @@ export default function PartialCodPage() {
                     onChange={(val) => setAutoCancelMinutes(val)}
                     helpText="Protects inventory from ghost orders that never complete the advance deposit."
                   />
+                </BlockStack>
+              </Card>
+
+              {/* Meta Conversions API (CAPI) Integration */}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        Meta Conversions API (Server-Side Tracking)
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        Report full cart values directly to Meta to prevent ROAS degradation on Partial COD orders
+                      </Text>
+                    </BlockStack>
+                    <Badge tone={metaPixelId && metaCapiToken ? "success" : "attention"}>
+                      {metaPixelId && metaCapiToken ? "CONFIGURED" : "NOT SET"}
+                    </Badge>
+                  </InlineStack>
+
+                  <Banner tone="info">
+                    <p>
+                      <strong>Why this matters:</strong> Standard browser pixels break on Draft Orders or only report the ₹100 online deposit. 
+                      Server-Side CAPI automatically intercepts order creation on Shopify and reports the true full cart value (Deposit + Doorstep Balance) 
+                      to Meta Events Manager with SHA-256 hashed customer data for optimal Event Quality Match.
+                    </p>
+                  </Banner>
+
+                  <FormLayout>
+                    <TextField
+                      label="Meta (Facebook) Pixel ID"
+                      value={metaPixelId}
+                      onChange={(val) => setMetaPixelId(val)}
+                      autoComplete="off"
+                      placeholder="e.g. 123456789012345"
+                      helpText="Found in Meta Events Manager > Data Sources > Settings > Dataset ID / Pixel ID."
+                    />
+
+                    <TextField
+                      label="Conversions API Access Token"
+                      type={showToken ? "text" : "password"}
+                      value={metaCapiToken}
+                      onChange={(val) => setMetaCapiToken(val)}
+                      autoComplete="off"
+                      placeholder="EAAB..."
+                      helpText="Generated in Meta Events Manager > Settings > Conversions API > Generate access token."
+                      connectedRight={
+                        <Button onClick={() => setShowToken(!showToken)}>
+                          {showToken ? "Hide" : "Show"}
+                        </Button>
+                      }
+                    />
+
+                    <Divider />
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">
+                        Meta Events Manager Verification
+                      </Text>
+                      <TextField
+                        label="Test Event Code (Optional)"
+                        value={testEventCode}
+                        onChange={(val) => setTestEventCode(val)}
+                        autoComplete="off"
+                        placeholder="e.g. TEST12345"
+                        helpText="Paste the Test Code from Meta Events Manager > Test Events tab to view immediate real-time payload verification."
+                      />
+                      <Box paddingBlockStart="200">
+                        <Button
+                          onClick={handleTestMetaCapi}
+                          loading={isSaving}
+                          disabled={!metaPixelId || !metaCapiToken}
+                        >
+                          Send Test Event to Meta
+                        </Button>
+                      </Box>
+                    </BlockStack>
+                  </FormLayout>
                 </BlockStack>
               </Card>
             </BlockStack>
