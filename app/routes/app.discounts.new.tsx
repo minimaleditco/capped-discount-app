@@ -34,7 +34,6 @@ import {
 } from "~/graphql/mutations";
 import { GET_FUNCTION_ID } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
-import { db } from "../db.server";
 
 interface ActionData {
   errors?: string[];

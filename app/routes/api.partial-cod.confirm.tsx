@@ -38,8 +38,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const depositRecord = depositId
-    ? getDepositById(depositId)
-    : getDepositByOrderId(shop, orderId);
+    ? await getDepositById(depositId)
+    : await getDepositByOrderId(shop, orderId);
 
   if (!depositRecord) {
     return json({ success: false, error: "Deposit record not found" }, { status: 404 });
@@ -55,7 +55,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  const settings = getPartialCodSettings(shop);
+  const settings = await getPartialCodSettings(shop);
   const gatewayAdapter = getGatewayAdapter(settings.gateway);
 
   // 1. Verify Payment Authenticity with Gateway
@@ -72,7 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!isValid) {
     depositRecord.status = "failed";
     depositRecord.updatedAt = Date.now();
-    saveDeposit(depositRecord);
+    await saveDeposit(depositRecord);
     return json({ success: false, error: "Payment verification failed" }, { status: 400 });
   }
 
@@ -184,7 +184,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     depositRecord.status = "paid";
     depositRecord.gatewayTransactionId = gatewayPaymentId;
     depositRecord.updatedAt = Date.now();
-    saveDeposit(depositRecord);
+    await saveDeposit(depositRecord);
 
     return json({
       success: true,

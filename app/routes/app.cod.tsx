@@ -45,8 +45,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop || "unknown";
 
-  const settings = getPartialCodSettings(shop);
-  const deposits = getDepositsByShop(shop, 10);
+  const settings = await getPartialCodSettings(shop);
+  const deposits = await getDepositsByShop(shop, 10);
 
   return json<LoaderData>({
     settings,
@@ -98,7 +98,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       updatedAt: Date.now(),
     };
 
-    savePartialCodSettings(updated);
+    await savePartialCodSettings(updated);
 
     return json<ActionData>({
       success: true,

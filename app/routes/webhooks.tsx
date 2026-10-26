@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { db } from "../db.server";
+import { deleteSessionsByShop } from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } = await authenticate.webhook(request);
@@ -12,7 +12,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // When merchant uninstalls, delete all sessions for that shop from SQLite
       try {
         console.log(`Cleaning up sessions for uninstalled shop: ${shop}`);
-        db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(shop);
+        await deleteSessionsByShop(shop);
       } catch (error) {
         console.error(`Failed to clean up sessions for uninstalled shop ${shop}:`, error);
       }
@@ -33,7 +33,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // 48 hours after uninstall, Shopify requests all store data to be deleted.
       try {
         console.log(`Shop redact request received for ${shop}. Purging store sessions.`);
-        db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(shop);
+        await deleteSessionsByShop(shop);
       } catch (error) {
         console.error(`Failed to purge shop data for ${shop}:`, error);
       }

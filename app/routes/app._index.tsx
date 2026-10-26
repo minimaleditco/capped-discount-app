@@ -19,7 +19,6 @@ import {
 import type { CappedDiscountConfig, DiscountMethod } from "~/types/discount";
 import { GET_APP_DISCOUNTS } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
-import { db } from "../db.server";
 
 export interface SerializedDiscountItem {
   id: string;

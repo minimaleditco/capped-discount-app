@@ -5,7 +5,8 @@ import {
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
 import { abstractFetch, setAbstractFetchFunc } from "@shopify/shopify-api/runtime";
-import { SqliteSessionStorage } from "./db.server";
+import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
+import prisma from "./db.server";
 
 // ========================================================================
 // Shopify Expiring Access Token Interceptor
@@ -101,7 +102,7 @@ const shopify = shopifyApp({
   ],
   appUrl: process.env.SHOPIFY_APP_URL || "https://capped-discount-app.onrender.com",
   authPathPrefix: "/auth",
-  sessionStorage: new SqliteSessionStorage(),
+  sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   future: {
     unstable_newEmbeddedAuthStrategy: true,

@@ -5,7 +5,7 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import { db } from "../db.server";
+import { deleteSessionsByShop } from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session, redirect } = await authenticate.admin(request);
@@ -27,21 +27,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (activeHandles.length > 0 && !activeHandles.includes("write_discounts") && session?.shop) {
       console.warn(`[Scope Check] Store ${session.shop} token missing write_discounts (has: ${activeHandles.join(",")}). Purging session and re-authorizing.`);
-      if (db) {
-        db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
-      }
+      await deleteSessionsByShop(session.shop);
       throw redirect(`/app?shop=${session.shop}`);
     }
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
     console.warn("Scope check failed or store forbidden:", error?.message || error);
-    if (db && session?.shop) {
+    if (session?.shop) {
       const isForbidden =
         (error instanceof Response && (error.status === 401 || error.status === 403)) ||
         (typeof error?.message === "string" && (error.message.includes("403") || error.message.includes("Forbidden") || error.message.includes("401")));
       if (isForbidden) {
         try {
-          db.prepare("DELETE FROM shopify_sessions WHERE shop = ?").run(session.shop);
+          await deleteSessionsByShop(session.shop);
         } catch {}
       }
     }

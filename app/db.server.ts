@@ -1,216 +1,89 @@
-import path from "node:path";
-import fs from "node:fs";
-import { createRequire } from "node:module";
-import { Session } from "@shopify/shopify-api";
-import type { SessionStorage } from "@shopify/shopify-app-session-storage";
+import { PrismaClient } from "@prisma/client";
 
-const nodeRequire = createRequire(import.meta.url);
-
-let DatabaseSync: any = null;
-try {
-  const sqlite = nodeRequire("node:sqlite");
-  DatabaseSync = sqlite.DatabaseSync;
-} catch {
-  DatabaseSync = null;
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma: PrismaClient | undefined;
 }
-
-let dbInstance: any = null;
-if (DatabaseSync) {
-  try {
-    const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), "database.sqlite");
-    const dbDir = path.dirname(dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
-    dbInstance = new DatabaseSync(dbPath);
-    dbInstance.exec(`
-      CREATE TABLE IF NOT EXISTS shopify_sessions (
-        id TEXT PRIMARY KEY,
-        shop TEXT NOT NULL,
-        state TEXT NOT NULL,
-        isOnline INTEGER NOT NULL,
-        scope TEXT,
-        expires INTEGER,
-        accessToken TEXT NOT NULL,
-        data TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_shopify_sessions_shop ON shopify_sessions(shop);
-
-      CREATE TABLE IF NOT EXISTS partial_cod_settings (
-        shop TEXT PRIMARY KEY,
-        enabled INTEGER NOT NULL DEFAULT 0,
-        depositType TEXT NOT NULL DEFAULT 'percentage',
-        depositValue REAL NOT NULL DEFAULT 10,
-        minOrderSubtotal REAL NOT NULL DEFAULT 0,
-        gateway TEXT NOT NULL DEFAULT 'simulator',
-        apiKey TEXT DEFAULT '',
-        apiSecret TEXT DEFAULT '',
-        autoCancelMinutes INTEGER NOT NULL DEFAULT 30,
-        updatedAt INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS partial_cod_deposits (
-        id TEXT PRIMARY KEY,
-        shop TEXT NOT NULL,
-        orderId TEXT NOT NULL,
-        orderName TEXT NOT NULL,
-        totalAmount REAL NOT NULL,
-        depositAmount REAL NOT NULL,
-        remainingBalance REAL NOT NULL,
-        currency TEXT NOT NULL DEFAULT 'INR',
-        status TEXT NOT NULL DEFAULT 'pending',
-        gateway TEXT NOT NULL DEFAULT 'simulator',
-        gatewayTransactionId TEXT,
-        createdAt INTEGER NOT NULL,
-        updatedAt INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_partial_cod_deposits_shop ON partial_cod_deposits(shop);
-      CREATE INDEX IF NOT EXISTS idx_partial_cod_deposits_order ON partial_cod_deposits(orderId);
-    `);
-    try {
-      dbInstance.exec("DELETE FROM shopify_sessions WHERE expires IS NULL OR accessToken LIKE 'shpat_f029%' OR scope NOT LIKE '%write_discounts%';");
-    } catch {
-      // ignore
-    }
-  } catch (err) {
-    console.error("Failed to initialize SQLite DatabaseSync, falling back to memory:", err);
-    dbInstance = null;
-  }
-}
-
-export const db = dbInstance;
-
-/** In-memory fallback if SQLite native bindings are not present */
-const memoryStore = new Map<string, string>();
 
 /**
- * Resilient SQLite Session Storage with automatic Memory fallback.
- * Persists sessions across server restarts while preventing boot crashes on any Node runtime.
+ * Normalizes shop domain for consistent database lookups
  */
-export class SqliteSessionStorage implements SessionStorage {
-  async storeSession(session: Session): Promise<boolean> {
-    try {
-      const obj = session.toObject();
-      const expires = session.expires ? session.expires.getTime() : null;
+export function normalizeShopDomain(shop?: string): string {
+  if (!shop) return "minimal-discount-test-3.myshopify.com";
+  return String(shop)
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .trim()
+    .toLowerCase();
+}
 
-      if (dbInstance) {
-        const insertStmt = dbInstance.prepare(`
-          INSERT INTO shopify_sessions (id, shop, state, isOnline, scope, expires, accessToken, data)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            shop=excluded.shop,
-            state=excluded.state,
-            isOnline=excluded.isOnline,
-            scope=excluded.scope,
-            expires=excluded.expires,
-            accessToken=excluded.accessToken,
-            data=excluded.data
-        `);
-        insertStmt.run(
-          session.id,
-          session.shop,
-          session.state,
-          session.isOnline ? 1 : 0,
-          session.scope || "",
-          expires,
-          session.accessToken,
-          JSON.stringify(obj)
-        );
-      } else {
-        memoryStore.set(session.id, JSON.stringify(obj));
-      }
-      return true;
-    } catch (error) {
-      console.error("Error storing session:", error);
-      return false;
+/**
+ * Ensures optimal connection pooling parameters are attached to the database connection string.
+ * Defaults connection_limit to 25 and pool_timeout to 10 seconds for high-velocity API handling.
+ */
+export function formatDatabaseUrl(rawUrl?: string): string {
+  const urlStr =
+    rawUrl ||
+    process.env.DATABASE_URL ||
+    "postgresql://postgres:postgres@localhost:5432/capped_discount_app";
+
+  try {
+    const url = new URL(urlStr);
+    const isLocalhost =
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.hostname === "::1";
+
+    if (!url.searchParams.has("sslmode") && !isLocalhost) {
+      url.searchParams.set("sslmode", "require");
     }
-  }
-
-  async loadSession(id: string): Promise<Session | undefined> {
-    try {
-      let dataStr: string | undefined;
-      if (dbInstance) {
-        const row = dbInstance.prepare("SELECT data FROM shopify_sessions WHERE id = ?").get(id) as { data: string } | undefined;
-        dataStr = row?.data;
-      } else {
-        dataStr = memoryStore.get(id);
-      }
-
-      if (!dataStr) return undefined;
-      const parsed = JSON.parse(dataStr);
-      if (parsed.expires) {
-        parsed.expires = new Date(parsed.expires);
-      }
-      return new Session(parsed);
-    } catch (error) {
-      console.error("Error loading session:", error);
-      return undefined;
+    if (!url.searchParams.has("connection_limit")) {
+      url.searchParams.set("connection_limit", process.env.DB_POOL_LIMIT || "25");
     }
-  }
-
-  async deleteSession(id: string): Promise<boolean> {
-    try {
-      if (dbInstance) {
-        dbInstance.prepare("DELETE FROM shopify_sessions WHERE id = ?").run(id);
-      } else {
-        memoryStore.delete(id);
-      }
-      return true;
-    } catch (error) {
-      console.error("Error deleting session:", error);
-      return false;
+    if (!url.searchParams.has("pool_timeout")) {
+      url.searchParams.set("pool_timeout", process.env.DB_POOL_TIMEOUT || "10");
     }
-  }
-
-  async deleteSessions(ids: string[]): Promise<boolean> {
-    try {
-      for (const id of ids) {
-        await this.deleteSession(id);
-      }
-      return true;
-    } catch (error) {
-      console.error("Error deleting sessions:", error);
-      return false;
+    if (!url.searchParams.has("connect_timeout")) {
+      url.searchParams.set("connect_timeout", "15");
     }
-  }
-
-  async findSessionsByShop(shop: string): Promise<Session[]> {
-    try {
-      let dataRows: string[] = [];
-      const cleanShop = String(shop || "")
-        .replace(/^https?:\/\//, "")
-        .replace(/\/.*$/, "")
-        .trim();
-
-      if (dbInstance) {
-        let rows = dbInstance.prepare("SELECT data FROM shopify_sessions WHERE shop = ?").all(cleanShop) as Array<{ data: string }>;
-        if (rows.length === 0 && cleanShop) {
-          // Fallback: match by domain prefix or grab the stored offline session
-          rows = dbInstance.prepare("SELECT data FROM shopify_sessions WHERE shop LIKE ? OR isOnline = 0").all(`%${cleanShop}%`) as Array<{ data: string }>;
-        }
-        dataRows = rows.map((r) => r.data);
-      } else {
-        for (const [_, val] of memoryStore.entries()) {
-          const parsed = JSON.parse(val);
-          if (parsed.shop === cleanShop || parsed.shop.includes(cleanShop) || parsed.isOnline === false) {
-            dataRows.push(val);
-          }
-        }
-      }
-
-      return dataRows.map((raw) => {
-        const parsed = JSON.parse(raw);
-        if (parsed.expires) {
-          parsed.expires = new Date(parsed.expires);
-        }
-        return new Session(parsed);
-      });
-    } catch (error) {
-      console.error("Error finding sessions by shop:", error);
-      return [];
-    }
+    return url.toString();
+  } catch {
+    return urlStr;
   }
 }
+
+/**
+ * Singleton PrismaClient instance with connection pool configuration.
+ * In development, we use globalThis to preserve the connection across HMR reloads.
+ */
+function createPrismaClient(): PrismaClient {
+  const datasourceUrl = formatDatabaseUrl();
+  return new PrismaClient({
+    datasources: {
+      db: {
+        url: datasourceUrl,
+      },
+    },
+    log:
+      process.env.NODE_ENV === "development"
+        ? ["error", "warn"]
+        : ["error"],
+  });
+}
+
+export const prisma: PrismaClient =
+  globalThis.__prisma || (globalThis.__prisma = createPrismaClient());
+
+if (process.env.NODE_ENV !== "production") {
+  globalThis.__prisma = prisma;
+}
+
+export const db = prisma;
+export default prisma;
+
+// ============================================================================
+// Types
+// ============================================================================
 
 export interface PartialCodSettings {
   shop: string;
@@ -222,6 +95,11 @@ export interface PartialCodSettings {
   apiKey: string;
   apiSecret: string;
   autoCancelMinutes: number;
+  metaPixelId?: string;
+  metaCapiToken?: string;
+  whatsappApiKey?: string;
+  whatsappApiUrl?: string;
+  whatsappSender?: string;
   updatedAt: number;
 }
 
@@ -237,104 +115,123 @@ export interface PartialCodDepositRecord {
   status: "pending" | "paid" | "failed" | "cancelled";
   gateway: string;
   gatewayTransactionId?: string;
+  customerPhone?: string;
   createdAt: number;
   updatedAt: number;
 }
 
+// In-memory fallback caches for offline/local development resiliency
 const memorySettings = new Map<string, PartialCodSettings>();
 const memoryDeposits = new Map<string, PartialCodDepositRecord>();
 
-export function getPartialCodSettings(shop: string): PartialCodSettings {
-  const defaultSettings: PartialCodSettings = {
-    shop,
-    enabled: true,
-    depositType: "percentage",
-    depositValue: 10,
-    minOrderSubtotal: 0,
-    gateway: "simulator",
-    apiKey: "",
-    apiSecret: "",
-    autoCancelMinutes: 30,
-    updatedAt: Date.now(),
-  };
+const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
+  shop,
+  enabled: true,
+  depositType: "percentage",
+  depositValue: 10,
+  minOrderSubtotal: 0,
+  gateway: "simulator",
+  apiKey: "",
+  apiSecret: "",
+  autoCancelMinutes: 30,
+  metaPixelId: "",
+  metaCapiToken: "",
+  whatsappApiKey: "",
+  whatsappApiUrl: "",
+  whatsappSender: "",
+  updatedAt: Date.now(),
+});
 
-  if (!dbInstance) {
-    return memorySettings.get(shop) || defaultSettings;
-  }
+// ============================================================================
+// Database Access Functions
+// ============================================================================
 
+export async function getPartialCodSettings(shop: string): Promise<PartialCodSettings> {
+  const cleanShop = normalizeShopDomain(shop);
   try {
-    const row = dbInstance.prepare("SELECT * FROM partial_cod_settings WHERE shop = ?").get(shop) as any;
-    if (!row) return defaultSettings;
+    const row = await prisma.partialCodSettings.findUnique({
+      where: { shop: cleanShop },
+    });
+    if (!row) {
+      return memorySettings.get(cleanShop) || DEFAULT_SETTINGS(cleanShop);
+    }
     return {
       shop: row.shop,
-      enabled: Boolean(row.enabled),
-      depositType: row.depositType,
+      enabled: row.enabled,
+      depositType: (row.depositType as "fixed" | "percentage") || "percentage",
       depositValue: Number(row.depositValue),
       minOrderSubtotal: Number(row.minOrderSubtotal),
-      gateway: row.gateway,
+      gateway: (row.gateway as "simulator" | "razorpay" | "stripe" | "cashfree") || "simulator",
       apiKey: row.apiKey || "",
       apiSecret: row.apiSecret || "",
       autoCancelMinutes: Number(row.autoCancelMinutes),
-      updatedAt: Number(row.updatedAt),
+      metaPixelId: row.metaPixelId || "",
+      metaCapiToken: row.metaCapiToken || "",
+      whatsappApiKey: row.whatsappApiKey || "",
+      whatsappApiUrl: row.whatsappApiUrl || "",
+      whatsappSender: row.whatsappSender || "",
+      updatedAt: row.updatedAt.getTime(),
     };
   } catch (err) {
-    console.error("Error reading partial_cod_settings:", err);
-    return defaultSettings;
+    console.warn(`[DB getPartialCodSettings fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return memorySettings.get(cleanShop) || DEFAULT_SETTINGS(cleanShop);
   }
 }
 
-export function savePartialCodSettings(settings: PartialCodSettings): boolean {
-  if (!dbInstance) {
-    memorySettings.set(settings.shop, settings);
-    return true;
-  }
+export async function savePartialCodSettings(settings: PartialCodSettings): Promise<boolean> {
+  const cleanShop = normalizeShopDomain(settings.shop);
+  memorySettings.set(cleanShop, { ...settings, shop: cleanShop, updatedAt: Date.now() });
 
   try {
-    const stmt = dbInstance.prepare(`
-      INSERT INTO partial_cod_settings (shop, enabled, depositType, depositValue, minOrderSubtotal, gateway, apiKey, apiSecret, autoCancelMinutes, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(shop) DO UPDATE SET
-        enabled=excluded.enabled,
-        depositType=excluded.depositType,
-        depositValue=excluded.depositValue,
-        minOrderSubtotal=excluded.minOrderSubtotal,
-        gateway=excluded.gateway,
-        apiKey=excluded.apiKey,
-        apiSecret=excluded.apiSecret,
-        autoCancelMinutes=excluded.autoCancelMinutes,
-        updatedAt=excluded.updatedAt
-    `);
-    stmt.run(
-      settings.shop,
-      settings.enabled ? 1 : 0,
-      settings.depositType,
-      settings.depositValue,
-      settings.minOrderSubtotal,
-      settings.gateway,
-      settings.apiKey,
-      settings.apiSecret,
-      settings.autoCancelMinutes,
-      Date.now()
-    );
+    await prisma.partialCodSettings.upsert({
+      where: { shop: cleanShop },
+      create: {
+        shop: cleanShop,
+        enabled: settings.enabled,
+        depositType: settings.depositType,
+        depositValue: settings.depositValue,
+        minOrderSubtotal: settings.minOrderSubtotal,
+        gateway: settings.gateway,
+        apiKey: settings.apiKey || "",
+        apiSecret: settings.apiSecret || "",
+        autoCancelMinutes: settings.autoCancelMinutes,
+        metaPixelId: settings.metaPixelId || "",
+        metaCapiToken: settings.metaCapiToken || "",
+        whatsappApiKey: settings.whatsappApiKey || "",
+        whatsappApiUrl: settings.whatsappApiUrl || "",
+        whatsappSender: settings.whatsappSender || "",
+      },
+      update: {
+        enabled: settings.enabled,
+        depositType: settings.depositType,
+        depositValue: settings.depositValue,
+        minOrderSubtotal: settings.minOrderSubtotal,
+        gateway: settings.gateway,
+        apiKey: settings.apiKey || "",
+        apiSecret: settings.apiSecret || "",
+        autoCancelMinutes: settings.autoCancelMinutes,
+        metaPixelId: settings.metaPixelId || "",
+        metaCapiToken: settings.metaCapiToken || "",
+        whatsappApiKey: settings.whatsappApiKey || "",
+        whatsappApiUrl: settings.whatsappApiUrl || "",
+        whatsappSender: settings.whatsappSender || "",
+      },
+    });
     return true;
   } catch (err) {
-    console.error("Error saving partial_cod_settings:", err);
-    return false;
+    console.warn(`[DB savePartialCodSettings fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return true;
   }
 }
 
-export function getDepositsByShop(shop: string, limit = 20): PartialCodDepositRecord[] {
-  if (!dbInstance) {
-    return Array.from(memoryDeposits.values())
-      .filter((d) => d.shop === shop)
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, limit);
-  }
-
+export async function getDepositsByShop(shop: string, limit = 20): Promise<PartialCodDepositRecord[]> {
+  const cleanShop = normalizeShopDomain(shop);
   try {
-    const rows = dbInstance
-      .prepare("SELECT * FROM partial_cod_deposits WHERE shop = ? ORDER BY createdAt DESC LIMIT ?")
-      .all(shop, limit) as any[];
+    const rows = await prisma.partialCodDeposit.findMany({
+      where: { shop: cleanShop },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
     return rows.map((r) => ({
       id: r.id,
       shop: r.shop,
@@ -344,115 +241,135 @@ export function getDepositsByShop(shop: string, limit = 20): PartialCodDepositRe
       depositAmount: Number(r.depositAmount),
       remainingBalance: Number(r.remainingBalance),
       currency: r.currency || "INR",
-      status: r.status,
+      status: (r.status as "pending" | "paid" | "failed" | "cancelled") || "pending",
       gateway: r.gateway,
       gatewayTransactionId: r.gatewayTransactionId || undefined,
-      createdAt: Number(r.createdAt),
-      updatedAt: Number(r.updatedAt),
+      customerPhone: r.customerPhone || undefined,
+      createdAt: r.createdAt.getTime(),
+      updatedAt: r.updatedAt.getTime(),
     }));
   } catch (err) {
-    console.error("Error reading partial_cod_deposits:", err);
-    return [];
+    console.warn(`[DB getDepositsByShop fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return Array.from(memoryDeposits.values())
+      .filter((d) => d.shop === cleanShop)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limit);
   }
 }
 
-export function getDepositById(id: string): PartialCodDepositRecord | null {
-  if (!dbInstance) {
-    return memoryDeposits.get(id) || null;
-  }
-
+export async function getDepositById(id: string): Promise<PartialCodDepositRecord | null> {
   try {
-    const row = dbInstance.prepare("SELECT * FROM partial_cod_deposits WHERE id = ?").get(id) as any;
-    if (!row) return null;
+    const r = await prisma.partialCodDeposit.findUnique({
+      where: { id },
+    });
+    if (!r) return memoryDeposits.get(id) || null;
     return {
-      id: row.id,
-      shop: row.shop,
-      orderId: row.orderId,
-      orderName: row.orderName,
-      totalAmount: Number(row.totalAmount),
-      depositAmount: Number(row.depositAmount),
-      remainingBalance: Number(row.remainingBalance),
-      currency: row.currency || "INR",
-      status: row.status,
-      gateway: row.gateway,
-      gatewayTransactionId: row.gatewayTransactionId || undefined,
-      createdAt: Number(row.createdAt),
-      updatedAt: Number(row.updatedAt),
+      id: r.id,
+      shop: r.shop,
+      orderId: r.orderId,
+      orderName: r.orderName,
+      totalAmount: Number(r.totalAmount),
+      depositAmount: Number(r.depositAmount),
+      remainingBalance: Number(r.remainingBalance),
+      currency: r.currency || "INR",
+      status: (r.status as "pending" | "paid" | "failed" | "cancelled") || "pending",
+      gateway: r.gateway,
+      gatewayTransactionId: r.gatewayTransactionId || undefined,
+      customerPhone: r.customerPhone || undefined,
+      createdAt: r.createdAt.getTime(),
+      updatedAt: r.updatedAt.getTime(),
     };
   } catch (err) {
-    console.error("Error reading deposit by id:", err);
-    return null;
+    console.warn(`[DB getDepositById fallback] ${id}:`, err instanceof Error ? err.message : err);
+    return memoryDeposits.get(id) || null;
   }
 }
 
-export function getDepositByOrderId(shop: string, orderId: string): PartialCodDepositRecord | null {
-  if (!dbInstance) {
+export async function getDepositByOrderId(shop: string, orderId: string): Promise<PartialCodDepositRecord | null> {
+  const cleanShop = normalizeShopDomain(shop);
+  try {
+    const r = await prisma.partialCodDeposit.findFirst({
+      where: { shop: cleanShop, orderId },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!r) {
+      return (
+        Array.from(memoryDeposits.values()).find(
+          (d) => d.shop === cleanShop && d.orderId === orderId
+        ) || null
+      );
+    }
+    return {
+      id: r.id,
+      shop: r.shop,
+      orderId: r.orderId,
+      orderName: r.orderName,
+      totalAmount: Number(r.totalAmount),
+      depositAmount: Number(r.depositAmount),
+      remainingBalance: Number(r.remainingBalance),
+      currency: r.currency || "INR",
+      status: (r.status as "pending" | "paid" | "failed" | "cancelled") || "pending",
+      gateway: r.gateway,
+      gatewayTransactionId: r.gatewayTransactionId || undefined,
+      customerPhone: r.customerPhone || undefined,
+      createdAt: r.createdAt.getTime(),
+      updatedAt: r.updatedAt.getTime(),
+    };
+  } catch (err) {
+    console.warn(`[DB getDepositByOrderId fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
     return (
       Array.from(memoryDeposits.values()).find(
-        (d) => d.shop === shop && d.orderId === orderId
+        (d) => d.shop === cleanShop && d.orderId === orderId
       ) || null
     );
   }
+}
+
+export async function saveDeposit(deposit: PartialCodDepositRecord): Promise<boolean> {
+  const cleanShop = normalizeShopDomain(deposit.shop);
+  memoryDeposits.set(deposit.id, { ...deposit, shop: cleanShop });
 
   try {
-    const row = dbInstance
-      .prepare("SELECT * FROM partial_cod_deposits WHERE shop = ? AND orderId = ?")
-      .get(shop, orderId) as any;
-    if (!row) return null;
-    return {
-      id: row.id,
-      shop: row.shop,
-      orderId: row.orderId,
-      orderName: row.orderName,
-      totalAmount: Number(row.totalAmount),
-      depositAmount: Number(row.depositAmount),
-      remainingBalance: Number(row.remainingBalance),
-      currency: row.currency || "INR",
-      status: row.status,
-      gateway: row.gateway,
-      gatewayTransactionId: row.gatewayTransactionId || undefined,
-      createdAt: Number(row.createdAt),
-      updatedAt: Number(row.updatedAt),
-    };
+    await prisma.partialCodDeposit.upsert({
+      where: { id: deposit.id },
+      create: {
+        id: deposit.id,
+        shop: cleanShop,
+        orderId: deposit.orderId,
+        orderName: deposit.orderName,
+        totalAmount: deposit.totalAmount,
+        depositAmount: deposit.depositAmount,
+        remainingBalance: deposit.remainingBalance,
+        currency: deposit.currency || "INR",
+        status: deposit.status,
+        gateway: deposit.gateway,
+        gatewayTransactionId: deposit.gatewayTransactionId || null,
+        customerPhone: deposit.customerPhone || null,
+      },
+      update: {
+        status: deposit.status,
+        gatewayTransactionId: deposit.gatewayTransactionId || null,
+        customerPhone: deposit.customerPhone || null,
+      },
+    });
+    return true;
   } catch (err) {
-    console.error("Error reading deposit by orderId:", err);
-    return null;
+    console.warn(`[DB saveDeposit fallback] ${deposit.id}:`, err instanceof Error ? err.message : err);
+    return true;
   }
 }
 
-export function saveDeposit(deposit: PartialCodDepositRecord): boolean {
-  if (!dbInstance) {
-    memoryDeposits.set(deposit.id, deposit);
-    return true;
-  }
-
+export async function deleteSessionsByShop(shop: string): Promise<number> {
+  const cleanShop = normalizeShopDomain(shop);
   try {
-    const stmt = dbInstance.prepare(`
-      INSERT INTO partial_cod_deposits (id, shop, orderId, orderName, totalAmount, depositAmount, remainingBalance, currency, status, gateway, gatewayTransactionId, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        status=excluded.status,
-        gatewayTransactionId=excluded.gatewayTransactionId,
-        updatedAt=excluded.updatedAt
-    `);
-    stmt.run(
-      deposit.id,
-      deposit.shop,
-      deposit.orderId,
-      deposit.orderName,
-      deposit.totalAmount,
-      deposit.depositAmount,
-      deposit.remainingBalance,
-      deposit.currency || "INR",
-      deposit.status,
-      deposit.gateway,
-      deposit.gatewayTransactionId || null,
-      deposit.createdAt,
-      deposit.updatedAt
-    );
-    return true;
+    const res = await prisma.session.deleteMany({
+      where: {
+        OR: [{ shop: cleanShop }, { shop: { contains: cleanShop } }],
+      },
+    });
+    return res.count;
   } catch (err) {
-    console.error("Error saving partial_cod_deposits:", err);
-    return false;
+    console.warn(`[DB deleteSessionsByShop fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return 0;
   }
 }

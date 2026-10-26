@@ -38,7 +38,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    const settings = getPartialCodSettings(shop);
+    const settings = await getPartialCodSettings(shop);
     if (!settings.enabled) {
       return json({ success: false, error: "Partial COD is not enabled on this store" }, { status: 400, headers: corsHeaders });
     }
@@ -229,7 +229,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    saveDeposit(depositRecord);
+    await saveDeposit(depositRecord);
 
     return json({
       success: true,
