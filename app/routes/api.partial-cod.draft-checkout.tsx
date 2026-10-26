@@ -123,7 +123,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Determine deposit and remaining balance
-    const settings = getPartialCodSettings(shop);
+    const settings = await getPartialCodSettings(shop);
     let deposit = 100; // default ₹100 deposit
 
     if (body.deposit && Number(body.deposit) > 0) {

@@ -51,10 +51,10 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     ? rawOrderId
     : `gid://shopify/Order/${rawOrderId}`;
 
-  const settings = getPartialCodSettings(shop);
+  const settings = await getPartialCodSettings(shop);
 
   // Check existing record
-  const existingDeposit = getDepositByOrderId(shop, fullOrderId);
+  const existingDeposit = await getDepositByOrderId(shop, fullOrderId);
   if (existingDeposit && existingDeposit.status === "paid") {
     return json<LoaderData>({
       shop,
@@ -133,7 +133,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       createdAt: existingDeposit?.createdAt || Date.now(),
       updatedAt: Date.now(),
     };
-    saveDeposit(depositRecord);
+    await saveDeposit(depositRecord);
 
     const gatewayAdapter = getGatewayAdapter(settings.gateway);
     const gatewayResult = await gatewayAdapter.createPayment({

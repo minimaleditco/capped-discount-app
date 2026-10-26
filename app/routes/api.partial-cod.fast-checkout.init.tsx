@@ -42,7 +42,7 @@ async function handleInit(request: Request) {
       return json({ success: false, error: "Missing required parameter: shop" }, { status: 400, headers: corsHeaders });
     }
 
-    const settings = getPartialCodSettings(shop);
+    const settings = await getPartialCodSettings(shop);
     if (!settings.enabled) {
       return json({ success: false, error: "Partial COD is not enabled on this store" }, { status: 400, headers: corsHeaders });
     }

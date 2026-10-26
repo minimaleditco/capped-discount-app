@@ -36,7 +36,7 @@ async function handlePayRequest(request: Request) {
     return json({ success: false, error: "Missing required parameter: shop" }, { status: 400 });
   }
 
-  const settings = getPartialCodSettings(shop);
+  const settings = await getPartialCodSettings(shop);
 
   if (orderId === "preview" || !orderId) {
     return json({
@@ -64,7 +64,7 @@ async function handlePayRequest(request: Request) {
     : `gid://shopify/Order/${orderId}`;
 
   // Check if already paid
-  const existingDeposit = getDepositByOrderId(shop, fullOrderId);
+  const existingDeposit = await getDepositByOrderId(shop, fullOrderId);
   if (existingDeposit && existingDeposit.status === "paid") {
     return json({
       success: true,
@@ -146,7 +146,7 @@ async function handlePayRequest(request: Request) {
       updatedAt: Date.now(),
     };
 
-    saveDeposit(depositRecord);
+    await saveDeposit(depositRecord);
 
     // Call Gateway Adapter
     const gatewayAdapter = getGatewayAdapter(settings.gateway);
@@ -169,7 +169,7 @@ async function handlePayRequest(request: Request) {
 
     // Store gateway order id
     depositRecord.gatewayTransactionId = gatewayResult.gatewayOrderId;
-    saveDeposit(depositRecord);
+    await saveDeposit(depositRecord);
 
     return json({
       success: true,
