@@ -23,8 +23,9 @@
     </div>
   </button>
 </div>
+{% endif %}
 
-<!-- Payment Choice Modal -->
+<!-- Payment Choice Modal (reusable across Product, Cart page, and Cart Drawer) -->
 <div class="pcod-modal-backdrop" id="pcod-choice-modal-backdrop" style="display: none;">
   <div class="pcod-choice-modal" id="pcod-choice-modal">
     <!-- Header -->
@@ -36,11 +37,11 @@
       <button type="button" class="pcod-choice-close" id="pcod-choice-close-btn" aria-label="Close">&times;</button>
     </div>
 
-    <!-- Product Mini Summary -->
+    <!-- Product / Cart Mini Summary -->
     <div class="pcod-choice-product">
       <img id="pcod-choice-img" src="{{ product.featured_image | image_url: width: 120 }}" alt="{{ product.title | escape }}" class="pcod-choice-thumb" />
       <div class="pcod-choice-prod-info">
-        <div class="pcod-choice-prod-name" id="pcod-choice-prod-name">{{ product.title | escape }}</div>
+        <div class="pcod-choice-prod-name" id="pcod-choice-prod-name">{{ product.title | default: 'Your Order' | escape }}</div>
         <div class="pcod-choice-prod-meta" id="pcod-choice-prod-meta">Quantity: 1</div>
       </div>
     </div>
@@ -87,7 +88,6 @@
     </div>
   </div>
 </div>
-{% endif %}
 
 {% schema %}
 {
