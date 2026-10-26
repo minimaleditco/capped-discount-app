@@ -373,3 +373,167 @@ export async function deleteSessionsByShop(shop: string): Promise<number> {
     return 0;
   }
 }
+
+// ============================================================================
+// Phase 2: Dynamic Deposit Rules
+// ============================================================================
+
+export interface DepositRuleRecord {
+  id: string;
+  shop: string;
+  conditionType: "Cart Value" | "SKU" | "Pincode";
+  conditionValue: string;
+  depositType: "Flat" | "Percentage";
+  depositValue: number;
+  priority: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DepositRuleInput {
+  conditionType: "Cart Value" | "SKU" | "Pincode";
+  conditionValue: string;
+  depositType: "Flat" | "Percentage";
+  depositValue: number;
+  priority?: number;
+}
+
+const memoryDepositRules = new Map<string, DepositRuleRecord>();
+
+export async function getDepositRules(shop: string): Promise<DepositRuleRecord[]> {
+  const cleanShop = normalizeShopDomain(shop);
+  try {
+    const rows = await prisma.depositRule.findMany({
+      where: { shop: cleanShop },
+      orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      shop: r.shop,
+      conditionType: (r.conditionType as "Cart Value" | "SKU" | "Pincode") || "Cart Value",
+      conditionValue: r.conditionValue,
+      depositType: (r.depositType as "Flat" | "Percentage") || "Flat",
+      depositValue: Number(r.depositValue),
+      priority: Number(r.priority),
+      createdAt: r.createdAt.getTime(),
+      updatedAt: r.updatedAt.getTime(),
+    }));
+  } catch (err) {
+    console.warn(`[DB getDepositRules fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return Array.from(memoryDepositRules.values())
+      .filter((r) => r.shop === cleanShop)
+      .sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
+  }
+}
+
+export async function createDepositRule(
+  shop: string,
+  data: DepositRuleInput
+): Promise<DepositRuleRecord> {
+  const cleanShop = normalizeShopDomain(shop);
+  const now = Date.now();
+  const ruleId = "rule_" + Math.random().toString(36).substring(2, 11);
+
+  const newRule: DepositRuleRecord = {
+    id: ruleId,
+    shop: cleanShop,
+    conditionType: data.conditionType,
+    conditionValue: data.conditionValue.trim(),
+    depositType: data.depositType,
+    depositValue: Number(data.depositValue),
+    priority: Number(data.priority ?? 0),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  memoryDepositRules.set(ruleId, newRule);
+
+  try {
+    const created = await prisma.depositRule.create({
+      data: {
+        shop: cleanShop,
+        conditionType: newRule.conditionType,
+        conditionValue: newRule.conditionValue,
+        depositType: newRule.depositType,
+        depositValue: newRule.depositValue,
+        priority: newRule.priority,
+      },
+    });
+    return {
+      id: created.id,
+      shop: created.shop,
+      conditionType: created.conditionType as any,
+      conditionValue: created.conditionValue,
+      depositType: created.depositType as any,
+      depositValue: Number(created.depositValue),
+      priority: Number(created.priority),
+      createdAt: created.createdAt.getTime(),
+      updatedAt: created.updatedAt.getTime(),
+    };
+  } catch (err) {
+    console.warn(`[DB createDepositRule fallback] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return newRule;
+  }
+}
+
+export async function updateDepositRule(
+  shop: string,
+  id: string,
+  data: Partial<DepositRuleInput>
+): Promise<DepositRuleRecord | null> {
+  const cleanShop = normalizeShopDomain(shop);
+  const existing = memoryDepositRules.get(id);
+  if (existing) {
+    const updated = {
+      ...existing,
+      ...data,
+      conditionValue: data.conditionValue !== undefined ? data.conditionValue.trim() : existing.conditionValue,
+      depositValue: data.depositValue !== undefined ? Number(data.depositValue) : existing.depositValue,
+      priority: data.priority !== undefined ? Number(data.priority) : existing.priority,
+      updatedAt: Date.now(),
+    };
+    memoryDepositRules.set(id, updated);
+  }
+
+  try {
+    const updated = await prisma.depositRule.update({
+      where: { id },
+      data: {
+        ...(data.conditionType && { conditionType: data.conditionType }),
+        ...(data.conditionValue !== undefined && { conditionValue: data.conditionValue.trim() }),
+        ...(data.depositType && { depositType: data.depositType }),
+        ...(data.depositValue !== undefined && { depositValue: Number(data.depositValue) }),
+        ...(data.priority !== undefined && { priority: Number(data.priority) }),
+      },
+    });
+    return {
+      id: updated.id,
+      shop: updated.shop,
+      conditionType: updated.conditionType as any,
+      conditionValue: updated.conditionValue,
+      depositType: updated.depositType as any,
+      depositValue: Number(updated.depositValue),
+      priority: Number(updated.priority),
+      createdAt: updated.createdAt.getTime(),
+      updatedAt: updated.updatedAt.getTime(),
+    };
+  } catch (err) {
+    console.warn(`[DB updateDepositRule fallback] ${id}:`, err instanceof Error ? err.message : err);
+    return memoryDepositRules.get(id) || null;
+  }
+}
+
+export async function deleteDepositRule(shop: string, id: string): Promise<boolean> {
+  const cleanShop = normalizeShopDomain(shop);
+  memoryDepositRules.delete(id);
+
+  try {
+    await prisma.depositRule.delete({
+      where: { id },
+    });
+    return true;
+  } catch (err) {
+    console.warn(`[DB deleteDepositRule fallback] ${id}:`, err instanceof Error ? err.message : err);
+    return true;
+  }
+}

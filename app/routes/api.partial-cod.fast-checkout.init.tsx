@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { getPartialCodSettings } from "../db.server";
+import { evaluateDepositRules } from "../services/deposit-rules.server";
 import { getGatewayAdapter } from "../services/gateways";
 
 const corsHeaders = {
@@ -68,14 +69,23 @@ async function handleInit(request: Request) {
     let shipping = Number(body.shipping) || 0;
     let total = Math.max(0, subtotal - discount + shipping);
 
-    // Calculate deposit
-    let deposit = 100;
-    if (settings.depositType === "percentage") {
-      deposit = Math.round((total * (Number(settings.depositValue) || 10)) / 100);
-    } else {
-      deposit = Math.min(total, Number(settings.depositValue) || 100);
-    }
-    const balance = Math.max(0, total - deposit);
+    // Evaluate dynamic risk-based deposit rules
+    const evaluation = await evaluateDepositRules(shop, {
+      totalPrice: total,
+      currency: "INR",
+      lineItems: items.map((it: any) => ({
+        title: it.title,
+        sku: it.sku,
+        variantId: it.variantId || it.id,
+        price: Number(it.price) || 0,
+        quantity: Number(it.quantity) || 1,
+      })),
+      pincode: body.pincode,
+      shippingAddress: body.shippingAddress,
+    });
+
+    const deposit = evaluation.deposit;
+    const balance = evaluation.balance;
 
     // Initialize Gateway Session
     const adapter = getGatewayAdapter(settings.gateway);
@@ -105,6 +115,10 @@ async function handleInit(request: Request) {
       total,
       deposit,
       balance,
+      ruleSummary: evaluation.ruleSummary,
+      matchedRule: evaluation.matchedRule
+        ? { id: evaluation.matchedRule.id, conditionType: evaluation.matchedRule.conditionType }
+        : null,
       currency: "INR",
       gateway: settings.gateway,
       gatewayOrderId: gatewayOrder.gatewayOrderId || sessionOrderId,

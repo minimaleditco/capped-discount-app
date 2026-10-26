@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { unauthenticated } from "../shopify.server";
 import { getPartialCodSettings } from "../db.server";
+import { evaluateDepositRules } from "../services/deposit-rules.server";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -122,19 +123,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    // Determine deposit and remaining balance
-    const settings = await getPartialCodSettings(shop);
-    let deposit = 100; // default ₹100 deposit
+    // Determine dynamic risk-based deposit and remaining balance
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const evaluation = await evaluateDepositRules(shop, {
+      totalPrice,
+      currency: "INR",
+      lineItems: rawItems.map((it: any) => ({
+        title: it.title,
+        sku: it.sku,
+        variantId: it.variantId || it.id,
+        price: Number(it.price) || 0,
+        quantity: Number(it.quantity) || 1,
+      })),
+      pincode: body.pincode || body.shippingAddress?.zip,
+      shippingAddress: body.shippingAddress,
+    });
 
+    let deposit = evaluation.deposit;
     if (body.deposit && Number(body.deposit) > 0) {
-      deposit = Number(body.deposit);
-    } else if (settings.depositType === "percentage") {
-      deposit = Math.round((totalPrice * settings.depositValue) / 100);
-      if (deposit <= 0) deposit = 100;
-    } else if (settings.depositType === "fixed") {
-      deposit = Math.min(totalPrice, settings.depositValue || 100);
+      deposit = Math.max(deposit, Number(body.deposit));
     }
-
     // Ensure deposit does not exceed total
     deposit = Math.min(totalPrice, deposit);
     const balance = Math.max(0, Math.round((totalPrice - deposit) * 100) / 100);
@@ -147,12 +155,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         `Deposit Paid: ₹${deposit}`,
         `Doorstep Balance: ₹${balance}`,
         `Collect ₹${balance} on Delivery`,
+        evaluation.matchedRule
+          ? `Rule: ${evaluation.matchedRule.conditionType}`
+          : "Rule: Store Default",
       ],
-      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}`,
+      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}`,
       customAttributes: [
         { key: "Payment Status", value: "Partially Paid" },
         { key: "Advance Deposit Paid", value: `₹${deposit.toFixed(2)}` },
         { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
+        { key: "Deposit Rule Applied", value: evaluation.ruleSummary },
         { key: "partial_cod_order", value: "true" },
       ],
     };
