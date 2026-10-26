@@ -51,7 +51,7 @@
         </div>
 
         <!-- Option Cards Container -->
-        <div class="pcod-cards-container">
+        <div class="pcod-cards-container" id="pcod-cards-container">
           <!-- Option 1: Full Prepaid -->
           <div class="pcod-option-card pcod-card-prepaid" id="pcod-card-prepaid">
             <div class="pcod-card-top">
@@ -84,6 +84,38 @@
               <span class="pcod-btn-text" id="pcod-cod-btn-label">Pay ₹100 Deposit & Confirm COD →</span>
             </button>
           </div>
+        </div>
+
+        <!-- WhatsApp OTP Verification Step -->
+        <div class="pcod-otp-step" id="pcod-otp-step" style="display: none;">
+          <div class="pcod-otp-header">
+            <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">← Change Payment Option</button>
+          </div>
+          <div class="pcod-otp-title">Verify WhatsApp for Partial COD</div>
+          <div class="pcod-otp-desc">To confirm your order and protect against bogus orders, please verify your mobile number. A 6-digit code will be sent to your WhatsApp.</div>
+
+          <!-- Phone Input Step -->
+          <div class="pcod-otp-phone-group" id="pcod-otp-phone-group">
+            <div class="pcod-otp-input-wrap">
+              <span class="pcod-otp-prefix">+91</span>
+              <input type="tel" id="pcod-otp-phone-input" class="pcod-otp-input" placeholder="10-digit mobile number" maxlength="10" />
+            </div>
+            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Get WhatsApp Code →</button>
+          </div>
+
+          <!-- Code Input Step -->
+          <div class="pcod-otp-code-group" id="pcod-otp-code-group" style="display: none;">
+            <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your WhatsApp!</div>
+            <div class="pcod-otp-input-wrap">
+              <input type="text" id="pcod-otp-code-input" class="pcod-otp-input pcod-code" placeholder="------" maxlength="6" />
+            </div>
+            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify & Proceed to Checkout →</button>
+            <div class="pcod-otp-resend">
+              <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend</button>
+            </div>
+          </div>
+
+          <div class="pcod-otp-error" id="pcod-otp-error" style="display: none;"></div>
         </div>
 
         <!-- Security Footer -->
@@ -124,6 +156,34 @@
     if (codBtn && !codBtn.getAttribute("data-pcod-bound")) {
       codBtn.setAttribute("data-pcod-bound", "true");
       codBtn.addEventListener("click", handleCodCheckout);
+    }
+
+    const otpBackBtn = $("pcod-otp-back-btn");
+    const otpSendBtn = $("pcod-otp-send-btn");
+    const otpVerifyBtn = $("pcod-otp-verify-btn");
+    const otpResendBtn = $("pcod-otp-resend-btn");
+
+    if (otpBackBtn && !otpBackBtn.getAttribute("data-pcod-bound")) {
+      otpBackBtn.setAttribute("data-pcod-bound", "true");
+      otpBackBtn.addEventListener("click", hideOtpStep);
+    }
+    if (otpSendBtn && !otpSendBtn.getAttribute("data-pcod-bound")) {
+      otpSendBtn.setAttribute("data-pcod-bound", "true");
+      otpSendBtn.addEventListener("click", handleSendOtp);
+    }
+    if (otpVerifyBtn && !otpVerifyBtn.getAttribute("data-pcod-bound")) {
+      otpVerifyBtn.setAttribute("data-pcod-bound", "true");
+      otpVerifyBtn.addEventListener("click", handleVerifyOtp);
+    }
+    if (otpResendBtn && !otpResendBtn.getAttribute("data-pcod-bound")) {
+      otpResendBtn.setAttribute("data-pcod-bound", "true");
+      otpResendBtn.addEventListener("click", function () {
+        const phoneGroup = $("pcod-otp-phone-group");
+        const codeGroup = $("pcod-otp-code-group");
+        if (phoneGroup) phoneGroup.style.display = "block";
+        if (codeGroup) codeGroup.style.display = "none";
+        handleSendOtp();
+      });
     }
   }
 
@@ -429,6 +489,143 @@
     }
   }
 
+  let verifiedPhone = "";
+  let verifiedToken = "";
+
+  function showOtpStep() {
+    const cards = $("pcod-cards-container");
+    const otpStep = $("pcod-otp-step");
+    if (cards) cards.style.display = "none";
+    if (otpStep) otpStep.style.display = "block";
+    const phoneInput = $("pcod-otp-phone-input");
+    if (phoneInput) phoneInput.focus();
+  }
+
+  function hideOtpStep() {
+    const cards = $("pcod-cards-container");
+    const otpStep = $("pcod-otp-step");
+    if (cards) cards.style.display = "block";
+    if (otpStep) otpStep.style.display = "none";
+    setOtpError("");
+    const codBtn = $("pcod-btn-choose-cod");
+    if (codBtn) {
+      codBtn.disabled = false;
+      codBtn.style.opacity = "1";
+    }
+  }
+
+  function setOtpError(msg) {
+    const errElem = $("pcod-otp-error");
+    if (errElem) {
+      if (msg) {
+        errElem.textContent = msg;
+        errElem.style.display = "block";
+      } else {
+        errElem.style.display = "none";
+      }
+    }
+  }
+
+  async function handleSendOtp() {
+    const phoneInput = $("pcod-otp-phone-input");
+    const sendBtn = $("pcod-otp-send-btn");
+    const rawPhone = phoneInput ? phoneInput.value.replace(/[^0-9]/g, "") : "";
+
+    if (!rawPhone || rawPhone.length < 10) {
+      setOtpError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    setOtpError("");
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending code to WhatsApp...";
+    }
+
+    try {
+      const shop = getShopDomain();
+      const res = await fetch(`${BACKEND_URL}/api/partial-cod/otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", shop, phone: rawPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send OTP.");
+      }
+
+      const phoneGroup = $("pcod-otp-phone-group");
+      const codeGroup = $("pcod-otp-code-group");
+      if (phoneGroup) phoneGroup.style.display = "none";
+      if (codeGroup) codeGroup.style.display = "block";
+
+      const sentText = $("pcod-otp-sent-text");
+      if (sentText) {
+        sentText.textContent = data.debugOtp
+          ? `✅ Simulator OTP: ${data.debugOtp} (or 123456)`
+          : `✅ Code sent to WhatsApp +91 ${rawPhone}!`;
+      }
+
+      const codeInput = $("pcod-otp-code-input");
+      if (codeInput) {
+        codeInput.value = "";
+        codeInput.focus();
+      }
+    } catch (err) {
+      setOtpError(err.message || "Failed to deliver OTP. Please check your number.");
+    } finally {
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Get WhatsApp Code →";
+      }
+    }
+  }
+
+  async function handleVerifyOtp() {
+    const phoneInput = $("pcod-otp-phone-input");
+    const codeInput = $("pcod-otp-code-input");
+    const verifyBtn = $("pcod-otp-verify-btn");
+
+    const phone = phoneInput ? phoneInput.value.replace(/[^0-9]/g, "") : "";
+    const otp = codeInput ? codeInput.value.trim() : "";
+
+    if (!otp || otp.length < 4) {
+      setOtpError("Please enter the 6-digit code received on WhatsApp.");
+      return;
+    }
+
+    setOtpError("");
+    if (verifyBtn) {
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = "Verifying & Opening Checkout...";
+    }
+
+    try {
+      const shop = getShopDomain();
+      const res = await fetch(`${BACKEND_URL}/api/partial-cod/otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify", shop, phone, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.verified) {
+        throw new Error(data.error || "Invalid code. Please try again.");
+      }
+
+      verifiedPhone = phone;
+      verifiedToken = data.token;
+
+      // Proceed to Draft Checkout with verified phone and token
+      await executeDraftCheckout(phone, data.token);
+    } catch (err) {
+      setOtpError(err.message || "Verification failed. Please re-enter the code.");
+      if (verifyBtn) {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = "Verify & Proceed to Checkout →";
+      }
+    }
+  }
+
   async function handleCodCheckout() {
     const codBtn = $("pcod-btn-choose-cod");
     const label = $("pcod-cod-btn-label");
@@ -436,6 +633,32 @@
       codBtn.disabled = true;
       codBtn.style.opacity = "0.8";
     }
+    if (label) label.textContent = "Verifying order...";
+
+    try {
+      const shop = getShopDomain();
+
+      // Check if WhatsApp OTP is required
+      if (!verifiedToken) {
+        const checkRes = await fetch(`${BACKEND_URL}/api/partial-cod/otp?action=send&shop=${encodeURIComponent(shop)}`);
+        const checkData = await checkRes.json();
+        if (checkData.required) {
+          showOtpStep();
+          return;
+        }
+      }
+
+      // If already verified or not required, proceed directly
+      await executeDraftCheckout(verifiedPhone, verifiedToken);
+    } catch (err) {
+      console.warn("[OTP Check Fallback]:", err);
+      await executeDraftCheckout(verifiedPhone, verifiedToken);
+    }
+  }
+
+  async function executeDraftCheckout(phone, otpToken) {
+    const codBtn = $("pcod-btn-choose-cod");
+    const label = $("pcod-cod-btn-label");
     if (label) label.textContent = "Opening Partial COD Checkout...";
 
     try {
@@ -450,8 +673,10 @@
             quantity: it.quantity,
             price: it.price / 100,
             title: it.title,
+            sku: it.sku,
           })),
-          deposit: 100,
+          phone: phone || undefined,
+          otpToken: otpToken || undefined,
         };
       } else {
         const { variantId, quantity, price, title } = activeProduct;
@@ -461,7 +686,8 @@
           quantity,
           price,
           title,
-          deposit: 100,
+          phone: phone || undefined,
+          otpToken: otpToken || undefined,
         };
       }
 
@@ -485,7 +711,7 @@
         codBtn.disabled = false;
         codBtn.style.opacity = "1";
       }
-      if (label) label.textContent = "Pay ₹100 Deposit & Confirm COD →";
+      if (label) label.textContent = "Pay Deposit & Confirm COD →";
     }
   }
 

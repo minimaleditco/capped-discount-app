@@ -322,3 +322,146 @@
   color: #64748B;
   padding-top: 4px;
 }
+
+/* OTP Verification Step */
+.pcod-otp-step {
+  padding: 10px 0;
+  animation: pcodFadeIn 0.2s ease-out;
+}
+
+.pcod-otp-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pcod-otp-back-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563EB;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pcod-otp-back-btn:hover {
+  text-decoration: underline;
+}
+
+.pcod-otp-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.pcod-otp-desc {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.pcod-otp-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #F8FAFC;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.pcod-otp-input-wrap:focus-within {
+  border-color: #2563EB;
+  background: #FFFFFF;
+}
+
+.pcod-otp-prefix {
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #475569;
+  background: #E2E8F0;
+  border-right: 1px solid #CBD5E1;
+}
+
+.pcod-otp-input {
+  flex: 1;
+  padding: 12px 14px;
+  font-size: 16px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #0F172A;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.pcod-otp-input.pcod-code {
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 0.25em;
+}
+
+.pcod-otp-action-btn {
+  width: 100%;
+  padding: 13px 20px;
+  background: #2563EB;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pcod-otp-action-btn:hover {
+  background: #1D4ED8;
+}
+
+.pcod-otp-action-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pcod-otp-sent-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #059669;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pcod-otp-error {
+  font-size: 12.5px;
+  color: #DC2626;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.pcod-otp-resend {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.pcod-otp-resend-btn {
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  color: #64748B;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pcod-otp-resend-btn:hover {
+  color: #2563EB;
+}

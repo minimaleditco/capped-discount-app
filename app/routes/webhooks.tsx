@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { deleteSessionsByShop } from "../db.server";
 import { sendToMetaCAPI } from "../services/meta-capi.server";
+import { sendDunningReminder } from "../services/whatsapp.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } = await authenticate.webhook(request);
@@ -171,6 +172,110 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       } catch (e) {
         console.warn("[Webhook orders/create error]:", e);
+      }
+      break;
+    }
+
+    case "FULFILLMENTS_CREATE":
+    case "FULFILLMENTS_UPDATE": {
+      try {
+        const shipmentStatus = String((payload as any)?.shipment_status || "").toLowerCase();
+        const orderId = (payload as any)?.order_id;
+        const gidOrderId = `gid://shopify/Order/${orderId}`;
+
+        console.log(`[Webhook ${topic}] Order ${orderId}, Shipment Status: "${shipmentStatus}"`);
+
+        // Check if shipment is Out for Delivery
+        if (shipmentStatus === "out_for_delivery" && admin) {
+          const orderRes = await admin.graphql(
+            `#graphql
+            query GetOrderForDunning($id: ID!) {
+              order(id: $id) {
+                id
+                name
+                tags
+                note
+                currencyCode
+                phone
+                customer {
+                  phone
+                  displayName
+                }
+                customAttributes {
+                  key
+                  value
+                }
+              }
+            }
+          `,
+            { variables: { id: gidOrderId } }
+          );
+
+          const orderJson: any = await orderRes.json();
+          const order = orderJson.data?.order;
+
+          if (order) {
+            const tags = Array.isArray(order.tags) ? order.tags : [];
+            const isPartialCod = tags.includes("Partial COD") || tags.includes("Partially Paid");
+            const alreadyReminded = tags.includes("Out For Delivery Reminded");
+
+            if (isPartialCod && !alreadyReminded) {
+              let doorstepBalance = 0;
+              const attrs = Array.isArray(order.customAttributes) ? order.customAttributes : [];
+              const balanceAttr = attrs.find((a: any) => a.key === "Doorstep COD Balance Due");
+              if (balanceAttr?.value) {
+                const parsed = parseFloat(String(balanceAttr.value).replace(/[^0-9.]/g, ""));
+                if (!isNaN(parsed) && parsed > 0) doorstepBalance = parsed;
+              }
+
+              if (doorstepBalance <= 0) {
+                const tagStr = tags.join(" ");
+                const match = tagStr.match(/(?:Doorstep Balance|Collect)[^\d]*([\d,]+(?:\.\d+)?)/i);
+                if (match && match[1]) {
+                  doorstepBalance = parseFloat(match[1].replace(/,/g, ""));
+                }
+              }
+
+              let customerPhone = order.phone || order.customer?.phone;
+              if (!customerPhone) {
+                const phoneAttr = attrs.find((a: any) => a.key === "Verified WhatsApp");
+                if (phoneAttr?.value) customerPhone = phoneAttr.value;
+              }
+
+              if (customerPhone && doorstepBalance > 0) {
+                console.log(
+                  `[WhatsApp Dunning] Triggering Out for Delivery message to ${customerPhone} for order ${order.name} (Balance: ₹${doorstepBalance})`
+                );
+
+                const dunningResult = await sendDunningReminder(shop, customerPhone, {
+                  orderName: order.name,
+                  balanceAmount: doorstepBalance,
+                  currency: order.currencyCode || "INR",
+                });
+
+                if (dunningResult.success) {
+                  await admin.graphql(
+                    `#graphql
+                    mutation TagOrderReminded($id: ID!, $tags: [String!]!) {
+                      tagsAdd(id: $id, tags: $tags) {
+                        userErrors { message }
+                      }
+                    }
+                  `,
+                    {
+                      variables: {
+                        id: gidOrderId,
+                        tags: ["Out For Delivery Reminded"],
+                      },
+                    }
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[Webhook fulfillments error]:", err);
       }
       break;
     }

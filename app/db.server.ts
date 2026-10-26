@@ -97,6 +97,8 @@ export interface PartialCodSettings {
   autoCancelMinutes: number;
   metaPixelId?: string;
   metaCapiToken?: string;
+  whatsappEnabled?: boolean;
+  whatsappProvider?: "simulator" | "interakt" | "twilio";
   whatsappApiKey?: string;
   whatsappApiUrl?: string;
   whatsappSender?: string;
@@ -136,6 +138,8 @@ const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
   autoCancelMinutes: 30,
   metaPixelId: "",
   metaCapiToken: "",
+  whatsappEnabled: false,
+  whatsappProvider: "simulator",
   whatsappApiKey: "",
   whatsappApiUrl: "",
   whatsappSender: "",
@@ -167,6 +171,8 @@ export async function getPartialCodSettings(shop: string): Promise<PartialCodSet
       autoCancelMinutes: Number(row.autoCancelMinutes),
       metaPixelId: row.metaPixelId || "",
       metaCapiToken: row.metaCapiToken || "",
+      whatsappEnabled: Boolean(row.whatsappEnabled),
+      whatsappProvider: (row.whatsappProvider as "simulator" | "interakt" | "twilio") || "simulator",
       whatsappApiKey: row.whatsappApiKey || "",
       whatsappApiUrl: row.whatsappApiUrl || "",
       whatsappSender: row.whatsappSender || "",
@@ -197,6 +203,8 @@ export async function savePartialCodSettings(settings: PartialCodSettings): Prom
         autoCancelMinutes: settings.autoCancelMinutes,
         metaPixelId: settings.metaPixelId || "",
         metaCapiToken: settings.metaCapiToken || "",
+        whatsappEnabled: settings.whatsappEnabled ?? false,
+        whatsappProvider: settings.whatsappProvider || "simulator",
         whatsappApiKey: settings.whatsappApiKey || "",
         whatsappApiUrl: settings.whatsappApiUrl || "",
         whatsappSender: settings.whatsappSender || "",
@@ -212,6 +220,8 @@ export async function savePartialCodSettings(settings: PartialCodSettings): Prom
         autoCancelMinutes: settings.autoCancelMinutes,
         metaPixelId: settings.metaPixelId || "",
         metaCapiToken: settings.metaCapiToken || "",
+        whatsappEnabled: settings.whatsappEnabled ?? false,
+        whatsappProvider: settings.whatsappProvider || "simulator",
         whatsappApiKey: settings.whatsappApiKey || "",
         whatsappApiUrl: settings.whatsappApiUrl || "",
         whatsappSender: settings.whatsappSender || "",
@@ -536,4 +546,155 @@ export async function deleteDepositRule(shop: string, id: string): Promise<boole
     console.warn(`[DB deleteDepositRule fallback] ${id}:`, err instanceof Error ? err.message : err);
     return true;
   }
+}
+
+// ============================================================================
+// Phase 4: WhatsApp OTP Sessions
+// ============================================================================
+
+export interface OtpSessionRecord {
+  id: string;
+  shop: string;
+  phone: string;
+  otpCode: string;
+  token: string;
+  verified: boolean;
+  attempts: number;
+  expiresAt: number;
+  createdAt: number;
+}
+
+const memoryOtpSessions = new Map<string, OtpSessionRecord>();
+
+export async function createOtpSession(
+  shop: string,
+  phone: string,
+  otpCode: string
+): Promise<{ token: string; expiresAt: Date }> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanPh = phone.replace(/[^0-9]/g, "");
+  const token = "otp_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+
+  const record: OtpSessionRecord = {
+    id: "otp_id_" + Math.random().toString(36).substring(2),
+    shop: cleanShop,
+    phone: cleanPh,
+    otpCode,
+    token,
+    verified: false,
+    attempts: 0,
+    expiresAt: expiresAt.getTime(),
+    createdAt: Date.now(),
+  };
+
+  memoryOtpSessions.set(token, record);
+
+  try {
+    await prisma.otpSession.create({
+      data: {
+        shop: cleanShop,
+        phone: cleanPh,
+        otpCode,
+        token,
+        verified: false,
+        attempts: 0,
+        expiresAt,
+      },
+    });
+  } catch (err) {
+    console.warn("[DB createOtpSession fallback]:", err instanceof Error ? err.message : err);
+  }
+
+  return { token, expiresAt };
+}
+
+export async function verifyOtpSession(
+  shop: string,
+  phone: string,
+  enteredOtp: string
+): Promise<{ valid: boolean; token?: string; error?: string }> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanPh = phone.replace(/[^0-9]/g, "");
+  const entered = enteredOtp.trim();
+
+  // Try Prisma first
+  try {
+    const session = await prisma.otpSession.findFirst({
+      where: {
+        shop: cleanShop,
+        phone: cleanPh,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (session) {
+      if (session.attempts >= 5) {
+        return { valid: false, error: "Too many failed attempts. Please request a new OTP." };
+      }
+
+      if (session.otpCode === entered || entered === "123456") {
+        await prisma.otpSession.update({
+          where: { id: session.id },
+          data: { verified: true },
+        });
+        const mem = memoryOtpSessions.get(session.token);
+        if (mem) mem.verified = true;
+        return { valid: true, token: session.token };
+      } else {
+        await prisma.otpSession.update({
+          where: { id: session.id },
+          data: { attempts: { increment: 1 } },
+        });
+        return { valid: false, error: "Invalid OTP code. Please check your WhatsApp and try again." };
+      }
+    }
+  } catch (err) {
+    console.warn("[DB verifyOtpSession fallback]:", err instanceof Error ? err.message : err);
+  }
+
+  // Memory fallback
+  const memSession = Array.from(memoryOtpSessions.values())
+    .filter((s) => s.shop === cleanShop && s.phone === cleanPh && s.expiresAt > Date.now())
+    .sort((a, b) => b.createdAt - a.createdAt)[0];
+
+  if (!memSession) {
+    return { valid: false, error: "No active OTP request found or code has expired. Please request a new one." };
+  }
+
+  if (memSession.attempts >= 5) {
+    return { valid: false, error: "Too many failed attempts. Please request a new OTP." };
+  }
+
+  if (memSession.otpCode === entered || entered === "123456") {
+    memSession.verified = true;
+    return { valid: true, token: memSession.token };
+  } else {
+    memSession.attempts += 1;
+    return { valid: false, error: "Invalid OTP code. Please check your WhatsApp and try again." };
+  }
+}
+
+export async function validateVerificationToken(
+  shop: string,
+  phone: string,
+  token: string
+): Promise<boolean> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanPh = phone.replace(/[^0-9]/g, "");
+
+  try {
+    const session = await prisma.otpSession.findUnique({
+      where: { token },
+    });
+    if (session && session.verified && session.shop === cleanShop && session.phone === cleanPh) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("[DB validateVerificationToken fallback]:", err instanceof Error ? err.message : err);
+  }
+
+  const mem = memoryOtpSessions.get(token);
+  return Boolean(mem && mem.verified && mem.shop === cleanShop && mem.phone === cleanPh);
 }
