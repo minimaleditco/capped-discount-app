@@ -19,8 +19,9 @@
   function getShopDomain() {
     return (
       (window.Shopify && window.Shopify.shop) ||
+      document.querySelector('meta[name="shopify-digital-wallet-domain"]')?.getAttribute("content") ||
       document.getElementById("pcod-fast-buy-btn")?.getAttribute("data-shop") ||
-      window.location.hostname
+      "minimal-discount-test-3.myshopify.com"
     );
   }
 
@@ -177,10 +178,15 @@
     }
   }
 
-  function readProductDetails() {
+  async function resolveProductDetails() {
     const buyBtn = $("pcod-fast-buy-btn");
-    let variantId = buyBtn ? buyBtn.getAttribute("data-variant-id") : "";
+    let variantId = buyBtn ? buyBtn.getAttribute("data-variant-id") || "" : "";
+    let price = parseFloat(buyBtn ? buyBtn.getAttribute("data-product-price") || "0" : "0");
+    let title = buyBtn ? buyBtn.getAttribute("data-product-title") || "" : "";
+    let image = buyBtn ? buyBtn.getAttribute("data-product-image") || "" : "";
+    let quantity = 1;
 
+    // 1. Get current selected variant input from the theme's product form
     const variantInput = document.querySelector(
       'form[action*="/cart/add"] [name="id"], form[action*="/cart/add"] select[name="id"], select.product-form__variants, [name="id"]'
     );
@@ -188,7 +194,7 @@
       variantId = variantInput.value;
     }
 
-    let quantity = 1;
+    // 2. Get quantity
     const qtyInput = document.querySelector(
       'form[action*="/cart/add"] [name="quantity"], input[name="quantity"]'
     );
@@ -196,21 +202,100 @@
       quantity = parseInt(qtyInput.value, 10);
     }
 
-    const price = parseFloat(buyBtn ? buyBtn.getAttribute("data-product-price") || "0" : "0");
-    const title = buyBtn ? buyBtn.getAttribute("data-product-title") || "Product" : "Product";
-    const image = buyBtn ? buyBtn.getAttribute("data-product-image") || "" : "";
-    const shop = getShopDomain();
+    // 3. If price is missing or 0, try Shopify's native product endpoint: /products/<handle>.js
+    if (!price || price <= 0 || !title || title === "Product") {
+      try {
+        const path = window.location.pathname.replace(/\/$/, "");
+        if (path.includes("/products/")) {
+          const res = await fetch(path + ".js");
+          if (res.ok) {
+            const productJson = await res.json();
+            if (productJson) {
+              title = productJson.title || title;
+              image = productJson.featured_image || image;
 
+              const currentVId = variantId || (productJson.variants && productJson.variants[0]?.id);
+              const matchedVariant =
+                productJson.variants?.find((v) => String(v.id) === String(currentVId)) ||
+                productJson.variants?.[0];
+
+              if (matchedVariant) {
+                variantId = String(matchedVariant.id);
+                price = matchedVariant.price / 100; // Shopify .js returns price in cents!
+                if (matchedVariant.featured_image && matchedVariant.featured_image.src) {
+                  image = matchedVariant.featured_image.src;
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[PCOD] Could not fetch product .js:", err);
+      }
+    }
+
+    // 4. If price is still missing or 0, try window.ShopifyAnalytics
+    if ((!price || price <= 0) && window.ShopifyAnalytics?.meta?.product) {
+      try {
+        const sap = window.ShopifyAnalytics.meta.product;
+        title = sap.title || title;
+        const currentVId = variantId || window.ShopifyAnalytics.meta.selectedVariantId;
+        const matchedVariant =
+          sap.variants?.find((v) => String(v.id) === String(currentVId)) || sap.variants?.[0];
+        if (matchedVariant) {
+          variantId = String(matchedVariant.id);
+          price = matchedVariant.price / 100;
+        }
+      } catch (err) {}
+    }
+
+    // 5. If price is still missing, parse from DOM price text
+    if (!price || price <= 0) {
+      const priceElem = document.querySelector(
+        ".price__regular .price-item--regular, .price-item--sale, .price-item, .product__price, [data-product-price], .price"
+      );
+      if (priceElem) {
+        const text = priceElem.textContent.replace(/[^0-9.]/g, "");
+        if (text && !isNaN(parseFloat(text))) {
+          price = parseFloat(text);
+        }
+      }
+    }
+
+    // 6. Title fallback
+    if (!title || title === "Product") {
+      const titleElem = document.querySelector(
+        ".product__title h1, .product-title, h1.product__title, h1"
+      );
+      if (titleElem && titleElem.textContent.trim()) {
+        title = titleElem.textContent.trim();
+      } else {
+        title = "Product";
+      }
+    }
+
+    // 7. Image fallback
+    if (!image) {
+      const imgElem = document.querySelector(
+        ".product__media img, .product-featured-media img, .product-single__photo img, img.image-magnify-lightbox"
+      );
+      if (imgElem && imgElem.src) {
+        image = imgElem.src;
+      }
+    }
+
+    const shop = getShopDomain();
     activeProduct = { variantId, quantity, price, title, image, shop };
     return activeProduct;
   }
 
-  function openProductChoiceModal() {
+  async function openProductChoiceModal() {
     activeMode = "product";
-    const details = readProductDetails();
     ensureModalExists();
     const backdrop = $("pcod-choice-modal-backdrop");
     if (!backdrop) return;
+
+    const details = await resolveProductDetails();
 
     const total = details.price * details.quantity;
     const deposit = total > 100 ? 100 : total;

@@ -177,13 +177,22 @@ export class SqliteSessionStorage implements SessionStorage {
   async findSessionsByShop(shop: string): Promise<Session[]> {
     try {
       let dataRows: string[] = [];
+      const cleanShop = String(shop || "")
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "")
+        .trim();
+
       if (dbInstance) {
-        const rows = dbInstance.prepare("SELECT data FROM shopify_sessions WHERE shop = ?").all(shop) as Array<{ data: string }>;
+        let rows = dbInstance.prepare("SELECT data FROM shopify_sessions WHERE shop = ?").all(cleanShop) as Array<{ data: string }>;
+        if (rows.length === 0 && cleanShop) {
+          // Fallback: match by domain prefix or grab the stored offline session
+          rows = dbInstance.prepare("SELECT data FROM shopify_sessions WHERE shop LIKE ? OR isOnline = 0").all(`%${cleanShop}%`) as Array<{ data: string }>;
+        }
         dataRows = rows.map((r) => r.data);
       } else {
         for (const [_, val] of memoryStore.entries()) {
           const parsed = JSON.parse(val);
-          if (parsed.shop === shop) {
+          if (parsed.shop === cleanShop || parsed.shop.includes(cleanShop) || parsed.isOnline === false) {
             dataRows.push(val);
           }
         }
