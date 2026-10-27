@@ -63,6 +63,11 @@ async function handleRequest(request: Request) {
       badgeText: settings.prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid",
     };
 
+    const depositSettings = {
+      type: settings.depositType || "percentage",
+      value: Number(settings.depositValue ?? 10),
+    };
+
     // Query LIVE discounts directly from Shopify Admin API
     const liveCoupons: CouponRule[] = [];
     let autoDiscount: any = null;
@@ -291,7 +296,7 @@ async function handleRequest(request: Request) {
       console.warn("[Live Shopify Discounts Fetch Error]:", err?.message || err);
     }
 
-    // If no code was entered, return the live list of coupons and auto discount
+    // If no code was entered, return the live list of coupons, auto discount, and store deposit settings
     if (!code) {
       return json(
         {
@@ -299,6 +304,7 @@ async function handleRequest(request: Request) {
           autoDiscount,
           coupons: liveCoupons,
           prepaidOffer,
+          depositSettings,
         },
         { headers: corsHeaders }
       );
@@ -317,6 +323,7 @@ async function handleRequest(request: Request) {
           error: `Coupon code '${code}' is invalid or expired.`,
           coupons: liveCoupons,
           prepaidOffer,
+          depositSettings,
         },
         { status: 400, headers: corsHeaders }
       );
@@ -329,6 +336,7 @@ async function handleRequest(request: Request) {
           error: `Minimum order amount of ₹${matchedRule.minSubtotal} required for code '${matchedRule.code}'.`,
           coupons: liveCoupons,
           prepaidOffer,
+          depositSettings,
         },
         { status: 400, headers: corsHeaders }
       );
@@ -361,14 +369,14 @@ async function handleRequest(request: Request) {
 
     const prepaidTotal = Math.max(0, Math.round((effectiveSubtotal - extraPrepaidDiscount) * 100) / 100);
 
-    // Calculate dynamic deposit (e.g. 10% or ₹100 min)
-    let deposit = effectiveSubtotal > 100 ? 100 : effectiveSubtotal;
-    if (settings.depositType === "percentage") {
-      deposit = Math.round(((effectiveSubtotal * settings.depositValue) / 100) * 100) / 100;
+    // Calculate dynamic flexible deposit (e.g. 10% of discounted subtotal, not flat 100)
+    let deposit = 0;
+    if (depositSettings.type === "percentage") {
+      deposit = Math.round(((effectiveSubtotal * depositSettings.value) / 100) * 100) / 100;
     } else {
-      deposit = settings.depositValue;
+      deposit = Math.min(effectiveSubtotal, depositSettings.value);
     }
-    deposit = Math.min(deposit, effectiveSubtotal);
+    deposit = Math.max(1, Math.min(effectiveSubtotal, deposit));
     const balance = Math.max(0, Math.round((effectiveSubtotal - deposit) * 100) / 100);
 
     return json(
@@ -386,6 +394,7 @@ async function handleRequest(request: Request) {
         prepaidTotal,
         depositAmount: deposit,
         balanceAmount: balance,
+        depositSettings,
         prepaidOffer,
         coupons: liveCoupons,
       },

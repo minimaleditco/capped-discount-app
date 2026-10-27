@@ -218,19 +218,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       deposit = evaluation.deposit;
       if (body.deposit && Number(body.deposit) > 0) {
-        deposit = Math.max(deposit, Number(body.deposit));
+        deposit = Number(body.deposit);
       }
-      deposit = Math.min(effectiveTotalPrice, deposit);
+      deposit = Math.max(1, Math.min(effectiveTotalPrice, deposit));
       balance = Math.max(0, Math.round((effectiveTotalPrice - deposit) * 100) / 100);
 
       // KEY FIX: Set line item originalUnitPrice to the advance deposit amount!
       // This charges the exact deposit online, without Shopify treating the doorstep balance as a discount or displaying misleading "TOTAL SAVINGS"!
+      // Doorstep balance is calculated against the net discounted product total (effectiveTotalPrice), not the undiscounted catalog price.
       const lineItemsForPartialCod = lineItemsInput.map((it: any) => {
-        const itemTotal = (it.price || 0) * it.quantity;
-        const ratio = totalPrice > 0 ? itemTotal / totalPrice : 1 / lineItemsInput.length;
+        const itemOriginalTotal = (it.price || 0) * it.quantity;
+        const ratio = totalPrice > 0 ? itemOriginalTotal / totalPrice : 1 / lineItemsInput.length;
+        const effectiveItemTotal = Math.round(effectiveTotalPrice * ratio * 100) / 100;
         const itemDeposit = Math.round(deposit * ratio * 100) / 100;
         const unitDeposit = (itemDeposit / it.quantity).toFixed(2);
-        const itemBalance = Math.max(0, Math.round((itemTotal - itemDeposit) * 100) / 100);
+        const itemBalance = Math.max(0, Math.round((effectiveItemTotal - itemDeposit) * 100) / 100);
 
         return {
           variantId: it.variantId,
@@ -238,7 +240,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           originalUnitPrice: unitDeposit,
           customAttributes: [
             { key: "Advance Deposit Paid", value: `₹${unitDeposit}` },
-            { key: "Full Product Value", value: `₹${(it.price || 0).toFixed(2)}` },
+            { key: "Catalog Price", value: `₹${(it.price || 0).toFixed(2)}` },
+            { key: "Net Product Total", value: `₹${effectiveItemTotal.toFixed(2)}` },
             { key: "Remaining Doorstep Balance Due", value: `₹${itemBalance.toFixed(2)}` },
           ],
         };
