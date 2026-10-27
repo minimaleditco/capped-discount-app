@@ -33,12 +33,6 @@ interface CouponRule {
   minSubtotal?: number;
 }
 
-const DEFAULT_COUPONS: CouponRule[] = [
-  { code: "GET150", title: "Flat ₹150 OFF above ₹299", type: "fixed", value: 150, minSubtotal: 299 },
-  { code: "GET200", title: "Flat ₹200 OFF above ₹399", type: "fixed", value: 200, minSubtotal: 399 },
-  { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
-];
-
 async function handleRequest(request: Request) {
   try {
     let shop = "";
@@ -62,16 +56,6 @@ async function handleRequest(request: Request) {
     const cleanShop = normalizeShopDomain(shop);
     const settings = await getPartialCodSettings(cleanShop);
 
-    let parsedCoupons: CouponRule[] = DEFAULT_COUPONS;
-    try {
-      if (settings.availableCoupons) {
-        const custom = JSON.parse(settings.availableCoupons);
-        if (Array.isArray(custom) && custom.length > 0) {
-          parsedCoupons = custom;
-        }
-      }
-    } catch {}
-
     const prepaidOffer = {
       enabled: settings.prepaidDiscountEnabled ?? true,
       type: settings.prepaidDiscountType || "percentage",
@@ -79,17 +63,74 @@ async function handleRequest(request: Request) {
       badgeText: settings.prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid",
     };
 
-    // Query active automatic discounts on store to lock in by default
+    // Query LIVE discounts directly from Shopify Admin API
+    const liveCoupons: CouponRule[] = [];
     let autoDiscount: any = null;
+
     try {
       const auth = await unauthenticated.admin(cleanShop);
-      const autoQuery = `#graphql
-        query GetActiveAutoDiscounts {
-          discountNodes(first: 5, query: "status:active") {
+      const discountQuery = `#graphql
+        query GetLiveStoreDiscounts {
+          discountNodes(first: 50) {
             nodes {
               id
               discount {
                 __typename
+                ... on DiscountCodeApp {
+                  title
+                  status
+                  codes(first: 5) {
+                    nodes {
+                      code
+                    }
+                  }
+                }
+                ... on DiscountCodeBasic {
+                  title
+                  status
+                  codes(first: 5) {
+                    nodes {
+                      code
+                    }
+                  }
+                  customerGets {
+                    value {
+                      ... on DiscountPercentage {
+                        percentage
+                      }
+                      ... on DiscountAmount {
+                        amount {
+                          amount
+                        }
+                      }
+                    }
+                  }
+                  minimumRequirement {
+                    ... on DiscountMinimumSubtotal {
+                      greaterThanOrEqualToSubtotal {
+                        amount
+                      }
+                    }
+                  }
+                }
+                ... on DiscountCodeBxgy {
+                  title
+                  status
+                  codes(first: 5) {
+                    nodes {
+                      code
+                    }
+                  }
+                }
+                ... on DiscountCodeFreeShipping {
+                  title
+                  status
+                  codes(first: 5) {
+                    nodes {
+                      code
+                    }
+                  }
+                }
                 ... on DiscountAutomaticApp {
                   title
                   status
@@ -97,6 +138,25 @@ async function handleRequest(request: Request) {
                 ... on DiscountAutomaticBasic {
                   title
                   status
+                  customerGets {
+                    value {
+                      ... on DiscountPercentage {
+                        percentage
+                      }
+                      ... on DiscountAmount {
+                        amount {
+                          amount
+                        }
+                      }
+                    }
+                  }
+                  minimumRequirement {
+                    ... on DiscountMinimumSubtotal {
+                      greaterThanOrEqualToSubtotal {
+                        amount
+                      }
+                    }
+                  }
                 }
               }
               metafield(namespace: "capped_discount", key: "configuration") {
@@ -106,25 +166,41 @@ async function handleRequest(request: Request) {
           }
         }
       `;
-      const autoRes = await auth.admin.graphql(autoQuery);
-      const autoData: any = await autoRes.json();
-      const nodes = autoData?.data?.discountNodes?.nodes || [];
+
+      const res = await auth.admin.graphql(discountQuery);
+      const resData: any = await res.json();
+      const nodes = resData?.data?.discountNodes?.nodes || [];
+
       for (const node of nodes) {
-        if (
-          node.discount?.__typename === "DiscountAutomaticApp" ||
-          node.discount?.__typename === "DiscountAutomaticBasic"
-        ) {
-          let config: any = {};
+        const d = node.discount;
+        if (!d) continue;
+
+        // CRUCIAL: Only consider discounts that are strictly ACTIVE!
+        const status = String(d.status || "").toUpperCase();
+        if (status !== "ACTIVE") {
+          continue;
+        }
+
+        // 1. Process Automatic Discounts
+        if (d.__typename === "DiscountAutomaticApp" || d.__typename === "DiscountAutomaticBasic") {
+          let percentage = 0;
+          let maxCap = 0;
+          let minSubtotal = 0;
+
           if (node.metafield?.value) {
             try {
-              config = JSON.parse(node.metafield.value);
+              const config = JSON.parse(node.metafield.value);
+              percentage = Number(config.percentage) || 0;
+              maxCap = Number(config.maxCapAmount) || 0;
+              minSubtotal = Number(config.minSubtotal) || 0;
             } catch {}
+          } else if (d.__typename === "DiscountAutomaticBasic") {
+            percentage = Number(d.customerGets?.value?.percentage) || 0;
+            minSubtotal = Number(d.minimumRequirement?.greaterThanOrEqualToSubtotal?.amount) || 0;
           }
-          const percentage = config.percentage || 0;
-          const maxCap = config.maxCapAmount || 0;
-          const minSubtotal = config.minSubtotal || 0;
+
           let calculatedAmount = 0;
-          if (percentage > 0 && subtotal > 0) {
+          if (subtotal >= minSubtotal && percentage > 0) {
             calculatedAmount = (subtotal * percentage) / 100;
             if (maxCap > 0 && calculatedAmount > maxCap) {
               calculatedAmount = maxCap;
@@ -132,63 +208,111 @@ async function handleRequest(request: Request) {
           }
           calculatedAmount = Math.min(calculatedAmount, subtotal);
 
-          autoDiscount = {
-            id: node.id,
-            title: node.discount.title || "Storewide Auto Discount",
-            percentage,
-            maxCap,
-            minSubtotal,
-            discountAmount: Math.round(calculatedAmount * 100) / 100,
-            isAuto: true,
-          };
-          break;
+          // ONLY lock in an automatic discount if it actually provides savings (> 0)!
+          if (calculatedAmount > 0 && !autoDiscount) {
+            autoDiscount = {
+              id: node.id,
+              title: d.title || "Storewide Auto Discount",
+              percentage,
+              maxCap,
+              minSubtotal,
+              discountAmount: Math.round(calculatedAmount * 100) / 100,
+              isAuto: true,
+            };
+          }
+          continue;
+        }
+
+        // 2. Process Code Discounts (Coupons)
+        const codeNode = d.codes?.nodes?.[0];
+        if (!codeNode || !codeNode.code) continue;
+
+        const couponCode = String(codeNode.code).trim().toUpperCase();
+
+        if (d.__typename === "DiscountCodeApp") {
+          let percentage = 0;
+          let maxCap = 0;
+          let minSubtotal = 0;
+
+          if (node.metafield?.value) {
+            try {
+              const config = JSON.parse(node.metafield.value);
+              percentage = Number(config.percentage) || 0;
+              maxCap = Number(config.maxCapAmount) || 0;
+              minSubtotal = Number(config.minSubtotal) || 0;
+            } catch {}
+          }
+
+          liveCoupons.push({
+            code: couponCode,
+            title: d.title || `${percentage}% OFF${maxCap ? ` (Max ₹${maxCap})` : ""}`,
+            type: "percentage",
+            value: percentage,
+            maxCap: maxCap || undefined,
+            minSubtotal: minSubtotal || undefined,
+          });
+        } else if (d.__typename === "DiscountCodeBasic") {
+          const pct = d.customerGets?.value?.percentage;
+          const amt = d.customerGets?.value?.amount?.amount;
+          const minReq = d.minimumRequirement?.greaterThanOrEqualToSubtotal?.amount;
+          const minSubtotal = minReq ? parseFloat(minReq) : undefined;
+
+          if (pct) {
+            liveCoupons.push({
+              code: couponCode,
+              title: d.title || `${pct}% OFF`,
+              type: "percentage",
+              value: Number(pct),
+              minSubtotal,
+            });
+          } else if (amt) {
+            liveCoupons.push({
+              code: couponCode,
+              title: d.title || `Flat ₹${amt} OFF`,
+              type: "fixed",
+              value: parseFloat(amt),
+              minSubtotal,
+            });
+          }
+        } else {
+          // Bxgy or Free Shipping
+          liveCoupons.push({
+            code: couponCode,
+            title: d.title || couponCode,
+            type: "fixed",
+            value: 0,
+          });
         }
       }
     } catch (err) {
-      console.warn("[Auto Discount Query Fallback]:", err);
+      console.warn("[Live Shopify Discounts Fetch Error]:", err);
     }
 
-    // If no code provided, just return available offers, auto-discount, and prepaid configuration
+    // If no code was entered, return the live list of coupons and auto discount
     if (!code) {
       return json(
         {
           success: true,
           autoDiscount,
-          coupons: parsedCoupons,
+          coupons: liveCoupons,
           prepaidOffer,
         },
         { headers: corsHeaders }
       );
     }
 
-    // Evaluate coupon
+    // Evaluate coupon entered by customer
     const normalizedCode = code.toUpperCase().trim();
-    let matchedRule = parsedCoupons.find(
+    const matchedRule = liveCoupons.find(
       (c) => c.code.toUpperCase() === normalizedCode
     );
-
-    // Dynamic fallback pattern matching for common merchant codes if not in list
-    if (!matchedRule) {
-      const pctMatch = normalizedCode.match(/(?:SAVE|OFF|DISC|FLAT)?(\d{1,2})/);
-      if (pctMatch && pctMatch[1]) {
-        const pct = parseInt(pctMatch[1], 10);
-        if (pct > 0 && pct <= 90) {
-          matchedRule = {
-            code: normalizedCode,
-            title: `${pct}% OFF`,
-            type: "percentage",
-            value: pct,
-          };
-        }
-      }
-    }
 
     if (!matchedRule) {
       return json(
         {
           valid: false,
           error: `Coupon code '${code}' is invalid or expired.`,
-          coupons: parsedCoupons,
+          coupons: liveCoupons,
           prepaidOffer,
         },
         { status: 400, headers: corsHeaders }
@@ -200,7 +324,7 @@ async function handleRequest(request: Request) {
         {
           valid: false,
           error: `Minimum order amount of ₹${matchedRule.minSubtotal} required for code '${matchedRule.code}'.`,
-          coupons: parsedCoupons,
+          coupons: liveCoupons,
           prepaidOffer,
         },
         { status: 400, headers: corsHeaders }
@@ -260,7 +384,7 @@ async function handleRequest(request: Request) {
         depositAmount: deposit,
         balanceAmount: balance,
         prepaidOffer,
-        coupons: parsedCoupons,
+        coupons: liveCoupons,
       },
       { headers: corsHeaders }
     );

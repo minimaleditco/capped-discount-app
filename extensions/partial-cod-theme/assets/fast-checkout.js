@@ -454,7 +454,7 @@
 
       baseOrderTotal = originalTotal;
 
-      // Detect and lock in storewide automatic discount
+      // Detect and lock in storewide automatic discount ONLY if it provides positive discount (> 0)
       if (rawAutoDiscount > 0) {
         let autoTitle = "Store Auto Discount";
         if (cart.cart_level_discount_applications && cart.cart_level_discount_applications.length > 0) {
@@ -477,6 +477,11 @@
         // Lock in by default unless a manual coupon was previously entered
         if (!activeCoupon || activeCoupon.isAuto) {
           activeCoupon = storeOffers.autoDiscount;
+        }
+      } else {
+        storeOffers.autoDiscount = null;
+        if (activeCoupon && activeCoupon.isAuto) {
+          activeCoupon = null;
         }
       }
 
@@ -510,11 +515,7 @@
   let activeCoupon = null;
   let storeOffers = {
     autoDiscount: null,
-    coupons: [
-      { code: "GET150", title: "Flat ₹150 OFF above ₹299", type: "fixed", value: 150, minSubtotal: 299 },
-      { code: "GET200", title: "Flat ₹200 OFF above ₹399", type: "fixed", value: 200, minSubtotal: 399 },
-      { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
-    ],
+    coupons: [],
     prepaidOffer: {
       enabled: true,
       type: "percentage",
@@ -531,11 +532,13 @@
         const data = await res.json();
         if (data.coupons && Array.isArray(data.coupons)) {
           storeOffers.coupons = data.coupons;
+        } else {
+          storeOffers.coupons = [];
         }
         if (data.prepaidOffer) {
           storeOffers.prepaidOffer = data.prepaidOffer;
         }
-        if (data.autoDiscount && !storeOffers.autoDiscount) {
+        if (data.autoDiscount && data.autoDiscount.discountAmount > 0) {
           storeOffers.autoDiscount = {
             code: "AUTO",
             title: data.autoDiscount.title,
@@ -545,6 +548,11 @@
           };
           if (!activeCoupon) {
             activeCoupon = storeOffers.autoDiscount;
+          }
+        } else {
+          storeOffers.autoDiscount = null;
+          if (activeCoupon && activeCoupon.isAuto) {
+            activeCoupon = null;
           }
         }
         renderCouponChips();
@@ -557,7 +565,7 @@
   }
 
   function applyAutoDiscount() {
-    if (!storeOffers.autoDiscount) return;
+    if (!storeOffers.autoDiscount || storeOffers.autoDiscount.discountAmount <= 0) return;
     activeCoupon = storeOffers.autoDiscount;
     const input = $("pcod-coupon-input");
     if (input) input.value = "";
@@ -580,7 +588,7 @@
     const container = $("pcod-coupon-chips");
     if (!container) return;
 
-    const hasAuto = !!storeOffers.autoDiscount;
+    const hasAuto = storeOffers.autoDiscount && storeOffers.autoDiscount.discountAmount > 0;
     const hasCoupons = storeOffers.coupons && storeOffers.coupons.length > 0;
 
     if (!hasAuto && !hasCoupons) {
