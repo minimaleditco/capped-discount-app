@@ -127,6 +127,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const prepaidDiscount = Math.max(0, parseFloat(String(body.prepaidDiscount || 0)));
     const couponCode = String(body.couponCode || "").trim().toUpperCase();
     const couponDiscount = Math.max(0, parseFloat(String(body.couponDiscount || 0)));
+    const currencyCode = String(body.currency || "INR").toUpperCase();
 
     // Verify WhatsApp / SMS OTP only for COD orders (Prepaid orders pay upfront online, so no fake order risk)
     const settings = await getPartialCodSettings(shopToUse);
@@ -162,11 +163,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       balance = 0;
       totalDeduction = Math.round((couponDiscount + prepaidDiscount) * 100) / 100;
 
-      // DraftOrderLineItemInput does NOT have a 'price' field; use 'originalUnitPrice' instead
+      // Lock base line item price using priceOverride
       const lineItemsForPrepaid = lineItemsInput.map((it: any) => ({
         variantId: it.variantId,
         quantity: it.quantity,
-        ...(it.price > 0 ? { originalUnitPrice: (it.price).toFixed(2) } : {}),
+        ...(it.price > 0
+          ? {
+              priceOverride: {
+                amount: (it.price).toFixed(2),
+                currencyCode: currencyCode,
+              },
+            }
+          : {}),
       }));
 
       draftOrderPayload = {
@@ -204,7 +212,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const rawItems = Array.isArray(body.items) ? body.items : [];
       const evaluation = await evaluateDepositRules(shop, {
         totalPrice: effectiveTotalPrice,
-        currency: "INR",
+        currency: currencyCode,
         lineItems: rawItems.map((it: any) => ({
           title: it.title,
           sku: it.sku,
@@ -223,9 +231,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       deposit = Math.max(1, Math.min(effectiveTotalPrice, deposit));
       balance = Math.max(0, Math.round((effectiveTotalPrice - deposit) * 100) / 100);
 
-      // KEY FIX: Set line item originalUnitPrice to the advance deposit amount!
-      // This charges the exact deposit online, without Shopify treating the doorstep balance as a discount or displaying misleading "TOTAL SAVINGS"!
-      // Doorstep balance is calculated against the net discounted product total (effectiveTotalPrice), not the undiscounted catalog price.
+      // KEY FIX: Use Shopify's priceOverride on DraftOrderLineItemInput to lock in the advance deposit per unit!
+      // In Shopify GraphQL 2025-01+, when variantId is present, Shopify ignores originalUnitPrice and charges the full catalog price.
+      // With priceOverride: { amount, currencyCode }, Shopify sets the line item price to the exact deposit amount online.
+      // This charges the exact deposit online, without treating the doorstep balance as a discount or displaying misleading "TOTAL SAVINGS"!
       const lineItemsForPartialCod = lineItemsInput.map((it: any) => {
         const itemOriginalTotal = (it.price || 0) * it.quantity;
         const ratio = totalPrice > 0 ? itemOriginalTotal / totalPrice : 1 / lineItemsInput.length;
@@ -235,9 +244,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const itemBalance = Math.max(0, Math.round((effectiveItemTotal - itemDeposit) * 100) / 100);
 
         return {
-          variantId: it.variantId,
+          ...(it.variantId ? { variantId: it.variantId } : { title: it.title || "Item" }),
           quantity: it.quantity,
-          originalUnitPrice: unitDeposit,
+          priceOverride: {
+            amount: unitDeposit,
+            currencyCode: currencyCode,
+          },
           customAttributes: [
             { key: "Advance Deposit Paid", value: `₹${unitDeposit}` },
             { key: "Catalog Price", value: `₹${(it.price || 0).toFixed(2)}` },

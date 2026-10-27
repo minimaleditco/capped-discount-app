@@ -1412,9 +1412,12 @@
       const calculatedDeposit = isPrepaid ? 0 : calculateDeposit(effectiveSubtotal);
       let payload;
 
+      const storeCurrency = (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) || "INR";
+
       if (activeMode === "cart" && activeCart) {
         payload = {
           shop,
+          currency: storeCurrency,
           isPrepaid: !!isPrepaid,
           prepaidDiscount: prepaidDiscount || 0,
           deposit: calculatedDeposit,
@@ -1434,6 +1437,7 @@
         const { variantId, quantity, price, title } = activeProduct;
         payload = {
           shop,
+          currency: storeCurrency,
           isPrepaid: !!isPrepaid,
           prepaidDiscount: prepaidDiscount || 0,
           deposit: calculatedDeposit,
