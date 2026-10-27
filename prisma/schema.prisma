@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Session {
@@ -56,7 +56,7 @@ model PartialCodSettings {
   smsProvider            String   @default("simulator")
   smsApiKey              String?  @default("")
   smsSenderId            String?  @default("")
-  availableCoupons       String?  @default("[{\"code\":\"SAVE10\",\"title\":\"10% OFF on all items\",\"type\":\"percentage\",\"value\":10,\"maxCap\":100},{\"code\":\"FLAT50\",\"title\":\"Flat ₹50 OFF\",\"type\":\"fixed\",\"value\":50,\"minSubtotal\":299}]")
+  availableCoupons       String?  @default("[]")
   createdAt              DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

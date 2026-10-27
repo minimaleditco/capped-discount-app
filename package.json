@@ -6,7 +6,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "prisma generate && remix vite:build",
+    "build": "prisma generate && prisma db push && remix vite:build",
     "db:check": "node scripts/test-db-connection.js",
     "db:migrate": "prisma migrate deploy",
     "dev": "npx @shopify/cli app dev",

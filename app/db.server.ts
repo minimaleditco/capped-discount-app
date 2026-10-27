@@ -58,17 +58,16 @@ export function formatDatabaseUrl(rawUrl?: string): string {
  * In development, we use globalThis to preserve the connection across HMR reloads.
  */
 function createPrismaClient(): PrismaClient {
-  const datasourceUrl = formatDatabaseUrl();
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl && (dbUrl.startsWith("postgres:") || dbUrl.startsWith("postgresql:"))) {
+    const datasourceUrl = formatDatabaseUrl(dbUrl);
+    return new PrismaClient({
+      datasources: { db: { url: datasourceUrl } },
+      log: ["error"],
+    });
+  }
   return new PrismaClient({
-    datasources: {
-      db: {
-        url: datasourceUrl,
-      },
-    },
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["error", "warn"]
-        : ["error"],
+    log: ["error"],
   });
 }
 
