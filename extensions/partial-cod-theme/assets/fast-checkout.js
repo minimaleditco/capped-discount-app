@@ -32,7 +32,10 @@
     const modalHtml = `
     <div class="pcod-modal-backdrop" id="pcod-choice-modal-backdrop" style="display: none;">
       <div class="pcod-choice-modal" id="pcod-choice-modal">
-        <!-- Header -->
+        <!-- Mobile pull indicator handle -->
+        <div class="pcod-mobile-pull-handle"></div>
+
+        <!-- Sticky Header -->
         <div class="pcod-choice-header">
           <div>
             <div class="pcod-shield-badge">🔒 256-Bit SSL Secure Checkout</div>
@@ -41,106 +44,117 @@
           <button type="button" class="pcod-choice-close" id="pcod-choice-close-btn" aria-label="Close">&times;</button>
         </div>
 
-        <!-- Product / Cart Mini Summary -->
-        <div class="pcod-choice-product">
-          <img id="pcod-choice-img" src="" alt="Item" class="pcod-choice-thumb" />
-          <div class="pcod-choice-prod-info">
-            <div class="pcod-choice-prod-name" id="pcod-choice-prod-name">Order Items</div>
-            <div class="pcod-choice-prod-meta" id="pcod-choice-prod-meta">Calculating...</div>
+        <!-- Inner Scrollable Container (Effortless scrolling on mobile & small screens) -->
+        <div class="pcod-modal-scroll-area" id="pcod-modal-scroll-area">
+          <!-- Product / Cart Mini Summary -->
+          <div class="pcod-choice-product">
+            <img id="pcod-choice-img" src="" alt="Item" class="pcod-choice-thumb" />
+            <div class="pcod-choice-prod-info">
+              <div class="pcod-choice-prod-name" id="pcod-choice-prod-name">Order Items</div>
+              <div class="pcod-choice-prod-meta" id="pcod-choice-prod-meta">Calculating...</div>
+            </div>
           </div>
-        </div>
 
-        <!-- Coupon & Best Deals Section -->
-        <div class="pcod-coupon-section" id="pcod-coupon-section">
-          <div class="pcod-coupon-input-row">
-            <span class="pcod-coupon-icon">🏷️</span>
-            <input type="text" id="pcod-coupon-input" class="pcod-coupon-input" placeholder="Enter coupon code (e.g. SAVE10)" />
-            <button type="button" id="pcod-coupon-apply-btn" class="pcod-coupon-apply-btn">Apply</button>
-          </div>
-          <div id="pcod-coupon-applied-msg" class="pcod-coupon-applied-msg" style="display: none;"></div>
-          <!-- Available Best Deal Offers -->
-          <div class="pcod-available-coupons-wrap" id="pcod-available-coupons-wrap" style="display: none;">
-            <div class="pcod-available-coupons-title">Tap to apply best deal:</div>
-            <div class="pcod-coupon-chips" id="pcod-coupon-chips"></div>
-          </div>
-        </div>
+          <!-- Option Cards Container (Full Prepaid & Partial COD) -->
+          <div class="pcod-cards-container" id="pcod-cards-container">
+            <!-- Option 1: Full Prepaid -->
+            <div class="pcod-option-card pcod-card-prepaid" id="pcod-card-prepaid">
+              <div class="pcod-card-top">
+                <span class="pcod-badge pcod-badge-green">⚡ Fastest Dispatch</span>
+                <span class="pcod-prepaid-tag" id="pcod-prepaid-tag">⚡ Extra 5% OFF on Prepaid</span>
+                <div class="pcod-price-stack">
+                  <span class="pcod-card-price" id="pcod-prepaid-price">₹0</span>
+                  <span class="pcod-original-price" id="pcod-prepaid-orig-price" style="display: none;">₹0</span>
+                  <span class="pcod-save-badge" id="pcod-prepaid-save-badge" style="display: none;">Save ₹0</span>
+                </div>
+              </div>
+              <div class="pcod-card-body">
+                <div class="pcod-card-title">Option 1: Full Prepaid</div>
+                <div class="pcod-card-desc" id="pcod-prepaid-desc">Pay 100% online now via UPI, Cards, or Netbanking. Extra prepaid savings applied automatically.</div>
+              </div>
+              <button type="button" class="pcod-select-btn pcod-btn-prepaid" id="pcod-btn-choose-prepaid">
+                <span class="pcod-btn-text" id="pcod-prepaid-btn-label">Pay Full ₹0 Online →</span>
+              </button>
+            </div>
 
-        <!-- Option Cards Container -->
-        <div class="pcod-cards-container" id="pcod-cards-container">
-          <!-- Option 1: Full Prepaid -->
-          <div class="pcod-option-card pcod-card-prepaid" id="pcod-card-prepaid">
-            <div class="pcod-card-top">
-              <span class="pcod-badge pcod-badge-green">⚡ Fastest Dispatch</span>
-              <span class="pcod-prepaid-tag" id="pcod-prepaid-tag">⚡ Extra 5% OFF on Prepaid</span>
-              <div class="pcod-price-stack">
-                <span class="pcod-card-price" id="pcod-prepaid-price">₹0</span>
-                <span class="pcod-original-price" id="pcod-prepaid-orig-price" style="display: none;">₹0</span>
-                <span class="pcod-save-badge" id="pcod-prepaid-save-badge" style="display: none;">Save ₹0</span>
+            <!-- Option 2: Partial COD -->
+            <div class="pcod-option-card pcod-card-cod" id="pcod-card-cod">
+              <div class="pcod-card-top">
+                <span class="pcod-badge pcod-badge-orange">📦 Pay Rest on Delivery</span>
+                <div class="pcod-card-price-split">
+                  <span class="pcod-price-now" id="pcod-cod-now">₹100 Now</span>
+                  <span class="pcod-price-doorstep" id="pcod-cod-doorstep">+ ₹0 COD</span>
+                </div>
+              </div>
+              <div class="pcod-card-body">
+                <div class="pcod-card-title">Option 2: Partial Cash on Delivery</div>
+                <div class="pcod-card-desc">Pay only <strong id="pcod-cod-desc-deposit">₹100</strong> advance deposit online to confirm shipping. Pay the remaining <strong id="pcod-cod-desc-balance">₹0</strong> in cash at your doorstep.</div>
+              </div>
+              <button type="button" class="pcod-select-btn pcod-btn-cod" id="pcod-btn-choose-cod">
+                <span class="pcod-btn-text" id="pcod-cod-btn-label">Pay ₹100 Deposit & Confirm COD →</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Coupon & Best Deals Section (Placed BELOW Payment Options) -->
+          <div class="pcod-coupon-section" id="pcod-coupon-section">
+            <div class="pcod-coupon-section-title-row">
+              <span class="pcod-coupon-section-icon">🏷️</span>
+              <span class="pcod-coupon-section-heading">Apply Coupons & Exclusive Offers</span>
+            </div>
+
+            <!-- Manual Coupon Code Input -->
+            <div class="pcod-coupon-input-row">
+              <input type="text" id="pcod-coupon-input" class="pcod-coupon-input" placeholder="ENTER COUPON CODE" />
+              <button type="button" id="pcod-coupon-apply-btn" class="pcod-coupon-apply-btn">Apply</button>
+            </div>
+
+            <!-- Coupon Status Message Banner -->
+            <div id="pcod-coupon-applied-msg" class="pcod-coupon-applied-msg" style="display: none;"></div>
+
+            <!-- Available Offer Cards List (Matching Reference Image) -->
+            <div class="pcod-available-coupons-wrap" id="pcod-available-coupons-wrap" style="display: none;">
+              <div class="pcod-available-coupons-title">Available Coupons</div>
+              <div class="pcod-coupon-cards-list" id="pcod-coupon-chips"></div>
+            </div>
+          </div>
+
+          <!-- SMS OTP Verification Step -->
+          <div class="pcod-otp-step" id="pcod-otp-step" style="display: none;">
+            <div class="pcod-otp-header">
+              <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">← Change Payment Option</button>
+            </div>
+            <div class="pcod-otp-title">Verify Mobile via SMS</div>
+            <div class="pcod-otp-desc">To confirm your Partial COD order, please enter your mobile number. A 6-digit SMS verification code will be sent.</div>
+
+            <!-- Phone Input Step -->
+            <div class="pcod-otp-phone-group" id="pcod-otp-phone-group">
+              <div class="pcod-otp-input-wrap">
+                <span class="pcod-otp-prefix">+91</span>
+                <input type="tel" id="pcod-otp-phone-input" class="pcod-otp-input" placeholder="10-digit mobile number" maxlength="10" />
+              </div>
+              <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Send SMS Code →</button>
+            </div>
+
+            <!-- Code Input Step -->
+            <div class="pcod-otp-code-group" id="pcod-otp-code-group" style="display: none;">
+              <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your mobile SMS inbox!</div>
+              <div class="pcod-otp-input-wrap">
+                <input type="text" id="pcod-otp-code-input" class="pcod-otp-input pcod-code" placeholder="------" maxlength="6" />
+              </div>
+              <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify SMS & Place Order →</button>
+              <div class="pcod-otp-resend">
+                <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend SMS</button>
               </div>
             </div>
-            <div class="pcod-card-body">
-              <div class="pcod-card-title">Option 1: Full Prepaid</div>
-              <div class="pcod-card-desc" id="pcod-prepaid-desc">Pay 100% online now via UPI, Cards, or Netbanking. Extra prepaid savings applied automatically.</div>
-            </div>
-            <button type="button" class="pcod-select-btn pcod-btn-prepaid" id="pcod-btn-choose-prepaid">
-              <span class="pcod-btn-text" id="pcod-prepaid-btn-label">Pay Full ₹0 Online →</span>
-            </button>
+
+            <div class="pcod-otp-error" id="pcod-otp-error" style="display: none;"></div>
           </div>
 
-          <!-- Option 2: Partial COD -->
-          <div class="pcod-option-card pcod-card-cod" id="pcod-card-cod">
-            <div class="pcod-card-top">
-              <span class="pcod-badge pcod-badge-orange">📦 Pay Rest on Delivery</span>
-              <div class="pcod-card-price-split">
-                <span class="pcod-price-now" id="pcod-cod-now">₹100 Now</span>
-                <span class="pcod-price-doorstep" id="pcod-cod-doorstep">+ ₹0 COD</span>
-              </div>
-            </div>
-            <div class="pcod-card-body">
-              <div class="pcod-card-title">Option 2: Partial Cash on Delivery</div>
-              <div class="pcod-card-desc">Pay only <strong id="pcod-cod-desc-deposit">₹100</strong> advance deposit online to confirm shipping. Pay the remaining <strong id="pcod-cod-desc-balance">₹0</strong> in cash at your doorstep.</div>
-            </div>
-            <button type="button" class="pcod-select-btn pcod-btn-cod" id="pcod-btn-choose-cod">
-              <span class="pcod-btn-text" id="pcod-cod-btn-label">Pay ₹100 Deposit & Confirm COD →</span>
-            </button>
+          <!-- Security Footer -->
+          <div class="pcod-choice-footer">
+            <span>🛡️ Buyer Protection Guaranteed • Official Shopify Checkout</span>
           </div>
-        </div>
-
-        <!-- SMS OTP Verification Step -->
-        <div class="pcod-otp-step" id="pcod-otp-step" style="display: none;">
-          <div class="pcod-otp-header">
-            <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">← Change Payment Option</button>
-          </div>
-          <div class="pcod-otp-title">Verify Mobile via SMS</div>
-          <div class="pcod-otp-desc">To confirm your Partial COD order, please enter your mobile number. A 6-digit SMS verification code will be sent.</div>
-
-          <!-- Phone Input Step -->
-          <div class="pcod-otp-phone-group" id="pcod-otp-phone-group">
-            <div class="pcod-otp-input-wrap">
-              <span class="pcod-otp-prefix">+91</span>
-              <input type="tel" id="pcod-otp-phone-input" class="pcod-otp-input" placeholder="10-digit mobile number" maxlength="10" />
-            </div>
-            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Send SMS Code →</button>
-          </div>
-
-          <!-- Code Input Step -->
-          <div class="pcod-otp-code-group" id="pcod-otp-code-group" style="display: none;">
-            <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your mobile SMS inbox!</div>
-            <div class="pcod-otp-input-wrap">
-              <input type="text" id="pcod-otp-code-input" class="pcod-otp-input pcod-code" placeholder="------" maxlength="6" />
-            </div>
-            <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify SMS & Place Order →</button>
-            <div class="pcod-otp-resend">
-              <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend SMS</button>
-            </div>
-          </div>
-
-          <div class="pcod-otp-error" id="pcod-otp-error" style="display: none;"></div>
-        </div>
-
-        <!-- Security Footer -->
-        <div class="pcod-choice-footer">
-          <span>🛡️ Buyer Protection Guaranteed • Official Shopify Checkout</span>
         </div>
       </div>
     </div>`;
@@ -462,9 +476,9 @@
   let activeCoupon = null;
   let storeOffers = {
     coupons: [
+      { code: "GET150", title: "Flat ₹150 OFF above ₹299", type: "fixed", value: 150, minSubtotal: 299 },
+      { code: "GET200", title: "Flat ₹200 OFF above ₹399", type: "fixed", value: 200, minSubtotal: 399 },
       { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
-      { code: "FLAT50", title: "Flat ₹50 OFF", type: "fixed", value: 50, minSubtotal: 299 },
-      { code: "CAP20", title: "20% OFF (Max ₹200)", type: "percentage", value: 20, maxCap: 200, minSubtotal: 500 },
     ],
     prepaidOffer: {
       enabled: true,
@@ -507,20 +521,84 @@
     if (wrap) wrap.style.display = "block";
     container.innerHTML = storeOffers.coupons
       .map(function (c) {
-        const badge = c.type === "percentage" ? `${c.value}% OFF` : `₹${c.value} OFF`;
-        const isActive = activeCoupon && activeCoupon.code === c.code;
+        const isActive = activeCoupon && activeCoupon.code.toUpperCase() === c.code.toUpperCase();
+        const minSub = c.minSubtotal ? Number(c.minSubtotal) : 0;
+        const isLocked = minSub > 0 && baseOrderTotal < minSub;
+        const diff = isLocked ? Math.ceil(minSub - baseOrderTotal) : 0;
+
+        let title = c.title;
+        if (!title) {
+          title =
+            c.type === "percentage"
+              ? `${c.value}% OFF${c.maxCap ? ` (Max ₹${c.maxCap})` : ""}`
+              : `Flat ₹${c.value} OFF${minSub > 0 ? ` above ₹${minSub}` : ""}`;
+        }
+
         return `
-          <div class="pcod-coupon-chip ${isActive ? "active" : ""}" data-coupon-code="${c.code}">
-            <span class="pcod-coupon-chip-code">${c.code}</span>
-            <span class="pcod-coupon-chip-badge">${badge}</span>
+          <div class="pcod-discount-card ${isActive ? "applied" : ""} ${isLocked ? "locked" : ""}" data-coupon-code="${c.code}" data-min-sub="${minSub}">
+            <div class="pcod-discount-card-left">
+              <div class="pcod-discount-badge-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="19" y1="5" x2="5" y2="19"></line>
+                  <circle cx="6.5" cy="6.5" r="2.5"></circle>
+                  <circle cx="17.5" cy="17.5" r="2.5"></circle>
+                </svg>
+              </div>
+              <div class="pcod-discount-info">
+                <div class="pcod-discount-title">${title}</div>
+                <div class="pcod-discount-subtitle">Use code <strong>${c.code}</strong></div>
+                <div class="pcod-discount-tag-row">
+                  <span class="pcod-discount-code-box">${c.code}</span>
+                  ${isLocked ? `<span class="pcod-discount-unlock-tag">Add ₹${diff.toLocaleString("en-IN")} more to unlock</span>` : ""}
+                </div>
+              </div>
+            </div>
+            <div class="pcod-discount-card-right">
+              ${
+                isActive
+                  ? `
+                <div class="pcod-discount-applied-pill">✓ Applied</div>
+                <button type="button" class="pcod-discount-remove-link" data-remove-code="${c.code}">Remove</button>
+              `
+                  : `
+                <button type="button" class="pcod-discount-apply-action ${isLocked ? "disabled" : ""}" ${isLocked ? "disabled" : ""}>
+                  ${isLocked ? "LOCKED" : "APPLY"}
+                </button>
+                <svg class="pcod-chevron-icon" viewBox="0 0 24 24" width="16" height="16" stroke="#94A3B8" stroke-width="2" fill="none">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              `
+              }
+            </div>
           </div>
         `;
       })
       .join("");
 
-    container.querySelectorAll(".pcod-coupon-chip").forEach(function (chip) {
-      chip.addEventListener("click", function () {
+    container.querySelectorAll(".pcod-discount-card").forEach(function (card) {
+      card.addEventListener("click", function (e) {
+        if (e.target.closest(".pcod-discount-remove-link")) {
+          e.stopPropagation();
+          handleRemoveCoupon();
+          return;
+        }
+
         const code = this.getAttribute("data-coupon-code");
+        const minSub = Number(this.getAttribute("data-min-sub") || 0);
+
+        if (minSub > 0 && baseOrderTotal < minSub) {
+          const diff = Math.ceil(minSub - baseOrderTotal);
+          const msgElem = $("pcod-coupon-applied-msg");
+          if (msgElem) {
+            msgElem.style.display = "flex";
+            msgElem.style.background = "#FEF3C7";
+            msgElem.style.borderColor = "#FCD34D";
+            msgElem.style.color = "#92400E";
+            msgElem.innerHTML = `<span>⚠️ Add ₹${diff.toLocaleString("en-IN")} more items to cart to unlock code <strong>${code}</strong> (Min ₹${minSub}).</span>`;
+          }
+          return;
+        }
+
         const input = $("pcod-coupon-input");
         if (input) input.value = code;
         handleApplyCoupon(code);
