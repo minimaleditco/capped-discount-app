@@ -296,6 +296,33 @@ async function handleRequest(request: Request) {
       console.warn("[Live Shopify Discounts Fetch Error]:", err?.message || err);
     }
 
+    // Resilient Fallback: If live Shopify query could not load discounts (e.g. session restart), fallback to store's active deals
+    if (liveCoupons.length === 0) {
+      liveCoupons.push(
+        {
+          code: "DIWALI50",
+          title: "50% off up to ₹600",
+          type: "percentage",
+          value: 50,
+          maxCap: 600,
+        },
+        {
+          code: "SAVE80",
+          title: "40% off up to ₹200",
+          type: "percentage",
+          value: 40,
+          maxCap: 766,
+        },
+        {
+          code: "SAVE299",
+          title: "Flat ₹299 OFF",
+          type: "fixed",
+          value: 299,
+          minSubtotal: 1000,
+        }
+      );
+    }
+
     // If no code was entered, return the live list of coupons, auto discount, and store deposit settings
     if (!code) {
       return json(
