@@ -292,6 +292,14 @@ async function handleRequest(request: Request) {
       console.warn("[Live Shopify Discounts Fetch Error]:", err);
     }
 
+    let allDbSessions: any[] = [];
+    try {
+      const { prisma } = await import("../db.server");
+      allDbSessions = await prisma.session.findMany({ select: { id: true, shop: true } });
+    } catch (e: any) {
+      allDbSessions = [{ error: e?.message }];
+    }
+
     // If no code was entered, return the live list of coupons and auto discount
     if (!code) {
       return json(
@@ -302,6 +310,7 @@ async function handleRequest(request: Request) {
           prepaidOffer,
           debug: {
             cleanShop,
+            allDbSessions,
             fetchError,
             resData,
           },
