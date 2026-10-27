@@ -162,8 +162,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       balance = 0;
       totalDeduction = Math.round((couponDiscount + prepaidDiscount) * 100) / 100;
 
+      // DraftOrderLineItemInput does NOT have a 'price' field; use 'originalUnitPrice' instead
+      const lineItemsForPrepaid = lineItemsInput.map((it: any) => ({
+        variantId: it.variantId,
+        quantity: it.quantity,
+        ...(it.price > 0 ? { originalUnitPrice: (it.price).toFixed(2) } : {}),
+      }));
+
       draftOrderPayload = {
-        lineItems: lineItemsInput,
+        lineItems: lineItemsForPrepaid,
         tags: [
           "Prepaid",
           "Paid Online",
@@ -182,12 +189,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
 
       if (totalDeduction > 0) {
+        const discountToApply = Math.min(totalDeduction, totalPrice);
         draftOrderPayload.appliedDiscount = {
           title: couponCode
             ? `Promotional Discount (${couponCode}${prepaidDiscount > 0 ? " + Extra Prepaid" : ""})`
             : "Prepaid Order Savings",
-          description: `Total discount applied: ₹${totalDeduction.toFixed(2)}`,
-          value: totalDeduction,
+          description: `Total discount applied: ₹${discountToApply.toFixed(2)}`,
+          value: discountToApply,
           valueType: "FIXED_AMOUNT",
         };
       }
