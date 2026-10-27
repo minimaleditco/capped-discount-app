@@ -342,9 +342,9 @@ export default function PartialCodPage() {
     settings.availableCoupons ||
       JSON.stringify(
         [
+          { code: "GET150", title: "Flat ₹150 OFF above ₹299", type: "fixed", value: 150, minSubtotal: 299 },
+          { code: "GET200", title: "Flat ₹200 OFF above ₹399", type: "fixed", value: 200, minSubtotal: 399 },
           { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
-          { code: "FLAT50", title: "Flat ₹50 OFF", type: "fixed", value: 50, minSubtotal: 299 },
-          { code: "CAP20", title: "20% OFF (Max ₹200)", type: "percentage", value: 20, maxCap: 200, minSubtotal: 500 },
         ],
         null,
         2
