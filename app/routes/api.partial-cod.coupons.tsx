@@ -66,6 +66,8 @@ async function handleRequest(request: Request) {
     // Query LIVE discounts directly from Shopify Admin API
     const liveCoupons: CouponRule[] = [];
     let autoDiscount: any = null;
+    let resData: any = null;
+    let nodes: any[] = [];
 
     try {
       const auth = await unauthenticated.admin(cleanShop);
@@ -168,8 +170,8 @@ async function handleRequest(request: Request) {
       `;
 
       const res = await auth.admin.graphql(discountQuery);
-      const resData: any = await res.json();
-      const nodes = resData?.data?.discountNodes?.nodes || [];
+      resData = await res.json();
+      nodes = resData?.data?.discountNodes?.nodes || [];
 
       for (const node of nodes) {
         const d = node.discount;
