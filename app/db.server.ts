@@ -302,11 +302,7 @@ export interface PartialCodDepositRecord {
 const memorySettings = new Map<string, PartialCodSettings>();
 const memoryDeposits = new Map<string, PartialCodDepositRecord>();
 
-const DEFAULT_COUPONS = JSON.stringify([
-  { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
-  { code: "FLAT50", title: "Flat ₹50 OFF", type: "fixed", value: 50, minSubtotal: 299 },
-  { code: "CAP20", title: "20% OFF (Max ₹200)", type: "percentage", value: 20, maxCap: 200, minSubtotal: 500 },
-]);
+const DEFAULT_COUPONS = "[]";
 
 const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
   shop,
