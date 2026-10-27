@@ -446,7 +446,41 @@
       }
 
       activeCart = cart;
-      const total = cart.total_price / 100;
+      const rawAutoDiscount = (cart.total_discount || 0) / 100;
+      let originalTotal = cart.total_price / 100;
+      if (cart.original_total_price && cart.original_total_price > cart.total_price) {
+        originalTotal = cart.original_total_price / 100;
+      }
+
+      baseOrderTotal = originalTotal;
+
+      // Detect and lock in storewide automatic discount
+      if (rawAutoDiscount > 0) {
+        let autoTitle = "Store Auto Discount";
+        if (cart.cart_level_discount_applications && cart.cart_level_discount_applications.length > 0) {
+          autoTitle = cart.cart_level_discount_applications[0].title || autoTitle;
+        } else if (cart.items) {
+          for (const it of cart.items) {
+            if (it.discounts && it.discounts.length > 0) {
+              autoTitle = it.discounts[0].title || autoTitle;
+              break;
+            }
+          }
+        }
+        storeOffers.autoDiscount = {
+          code: "AUTO",
+          title: autoTitle,
+          discountAmount: rawAutoDiscount,
+          discountSummary: `${autoTitle} (Store Auto Offer)`,
+          isAuto: true,
+        };
+        // Lock in by default unless a manual coupon was previously entered
+        if (!activeCoupon || activeCoupon.isAuto) {
+          activeCoupon = storeOffers.autoDiscount;
+        }
+      }
+
+      const total = originalTotal;
       const deposit = total > 100 ? 100 : total;
       const balance = Math.max(0, Math.round((total - deposit) * 100) / 100);
 
@@ -475,6 +509,7 @@
   let baseOrderTotal = 0;
   let activeCoupon = null;
   let storeOffers = {
+    autoDiscount: null,
     coupons: [
       { code: "GET150", title: "Flat ₹150 OFF above ₹299", type: "fixed", value: 150, minSubtotal: 299 },
       { code: "GET200", title: "Flat ₹200 OFF above ₹399", type: "fixed", value: 200, minSubtotal: 399 },
@@ -500,7 +535,20 @@
         if (data.prepaidOffer) {
           storeOffers.prepaidOffer = data.prepaidOffer;
         }
+        if (data.autoDiscount && !storeOffers.autoDiscount) {
+          storeOffers.autoDiscount = {
+            code: "AUTO",
+            title: data.autoDiscount.title,
+            discountAmount: data.autoDiscount.discountAmount,
+            discountSummary: `${data.autoDiscount.title} (Store Auto Offer)`,
+            isAuto: true,
+          };
+          if (!activeCoupon) {
+            activeCoupon = storeOffers.autoDiscount;
+          }
+        }
         renderCouponChips();
+        recalculateModalPrices();
       }
     } catch (e) {
       console.warn("[Store Offers Fetch Fallback]:", e);
@@ -508,20 +556,75 @@
     }
   }
 
+  function applyAutoDiscount() {
+    if (!storeOffers.autoDiscount) return;
+    activeCoupon = storeOffers.autoDiscount;
+    const input = $("pcod-coupon-input");
+    if (input) input.value = "";
+    const msgElem = $("pcod-coupon-applied-msg");
+    if (msgElem) {
+      msgElem.style.display = "flex";
+      msgElem.style.background = "#FEF3C7";
+      msgElem.style.borderColor = "#FCD34D";
+      msgElem.style.color = "#92400E";
+      msgElem.innerHTML = `
+        <span>⚡ Store Auto Discount <strong>${storeOffers.autoDiscount.title}</strong> is locked in! Saved ₹${storeOffers.autoDiscount.discountAmount.toLocaleString("en-IN")}</span>
+      `;
+    }
+    renderCouponChips();
+    recalculateModalPrices();
+  }
+
   function renderCouponChips() {
     const wrap = $("pcod-available-coupons-wrap");
     const container = $("pcod-coupon-chips");
     if (!container) return;
 
-    if (!storeOffers.coupons || storeOffers.coupons.length === 0) {
+    const hasAuto = !!storeOffers.autoDiscount;
+    const hasCoupons = storeOffers.coupons && storeOffers.coupons.length > 0;
+
+    if (!hasAuto && !hasCoupons) {
       if (wrap) wrap.style.display = "none";
       return;
     }
 
     if (wrap) wrap.style.display = "block";
-    container.innerHTML = storeOffers.coupons
+
+    let html = "";
+
+    // 1. Render Auto-Discount Card at the very top if present
+    if (storeOffers.autoDiscount) {
+      const isAutoActive = activeCoupon && activeCoupon.isAuto;
+      html += `
+        <div class="pcod-discount-card pcod-auto-card ${isAutoActive ? "applied" : ""}" data-is-auto="true">
+          <div class="pcod-discount-card-left">
+            <div class="pcod-discount-badge-icon pcod-auto-badge">
+              <span style="font-size: 16px; color: #FFFFFF;">⚡</span>
+            </div>
+            <div class="pcod-discount-info">
+              <div class="pcod-discount-title">${storeOffers.autoDiscount.title}</div>
+              <div class="pcod-discount-subtitle">⚡ Store Auto Discount (Applied by Default)</div>
+              <div class="pcod-discount-tag-row">
+                <span class="pcod-discount-code-box">AUTO APPLIED</span>
+                <span class="pcod-discount-unlock-tag" style="background: #FEF3C7; color: #92400E;">Default Savings</span>
+              </div>
+            </div>
+          </div>
+          <div class="pcod-discount-card-right">
+            ${
+              isAutoActive
+                ? `<div class="pcod-discount-applied-pill">✓ Applied</div>`
+                : `<button type="button" class="pcod-discount-apply-action pcod-reapply-auto-btn">RE-APPLY AUTO</button>`
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. Render Promotional Coupons
+    html += (storeOffers.coupons || [])
       .map(function (c) {
-        const isActive = activeCoupon && activeCoupon.code.toUpperCase() === c.code.toUpperCase();
+        const isActive = activeCoupon && !activeCoupon.isAuto && activeCoupon.code.toUpperCase() === c.code.toUpperCase();
         const minSub = c.minSubtotal ? Number(c.minSubtotal) : 0;
         const isLocked = minSub > 0 && baseOrderTotal < minSub;
         const diff = isLocked ? Math.ceil(minSub - baseOrderTotal) : 0;
@@ -575,7 +678,18 @@
       })
       .join("");
 
-    container.querySelectorAll(".pcod-discount-card").forEach(function (card) {
+    container.innerHTML = html;
+
+    // Listeners for auto card
+    const autoCard = container.querySelector(".pcod-auto-card");
+    if (autoCard) {
+      autoCard.addEventListener("click", function () {
+        applyAutoDiscount();
+      });
+    }
+
+    // Listeners for coupon cards
+    container.querySelectorAll(".pcod-discount-card:not(.pcod-auto-card)").forEach(function (card) {
       card.addEventListener("click", function (e) {
         if (e.target.closest(".pcod-discount-remove-link")) {
           e.stopPropagation();
@@ -636,6 +750,7 @@
         throw new Error(data.error || `Coupon '${rawCode}' is not valid for this order.`);
       }
 
+      // Deactivate auto discount and set manual coupon
       activeCoupon = data;
       if (input) input.value = data.code;
 
@@ -645,8 +760,8 @@
         msgElem.style.borderColor = "#86EFAC";
         msgElem.style.color = "#166534";
         msgElem.innerHTML = `
-          <span>🎉 Code <strong>${data.code}</strong> applied! Saved ₹${data.discountAmount.toLocaleString("en-IN")} (${data.discountSummary})</span>
-          <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
+          <span>🎉 Code <strong>${data.code}</strong> applied! Saved ₹${data.discountAmount.toLocaleString("en-IN")}${storeOffers.autoDiscount ? " (Replaces Auto Discount)" : ""}</span>
+          <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">${storeOffers.autoDiscount ? "Revert to Auto Offer" : "Remove"}</button>
         `;
         const removeBtn = $("pcod-coupon-remove-btn");
         if (removeBtn) {
@@ -673,10 +788,17 @@
   }
 
   function handleRemoveCoupon() {
-    activeCoupon = null;
     const input = $("pcod-coupon-input");
-    const msgElem = $("pcod-coupon-applied-msg");
     if (input) input.value = "";
+
+    // If an auto-discount exists on the store, revert back to locking it in!
+    if (storeOffers.autoDiscount) {
+      applyAutoDiscount();
+      return;
+    }
+
+    activeCoupon = null;
+    const msgElem = $("pcod-coupon-applied-msg");
     if (msgElem) {
       msgElem.style.display = "none";
       msgElem.style.background = "#DCFCE7";
@@ -764,7 +886,11 @@
 
   function populateModalUI({ title, image, meta, total, deposit, balance }) {
     baseOrderTotal = total;
-    activeCoupon = null;
+    if (storeOffers.autoDiscount) {
+      activeCoupon = storeOffers.autoDiscount;
+    } else {
+      activeCoupon = null;
+    }
 
     const imgElem = $("pcod-choice-img");
     const nameElem = $("pcod-choice-prod-name");
@@ -842,8 +968,9 @@
       checkoutUrl = `/cart/${variantId}:${quantity}`;
     }
 
-    // Pass single coupon code to checkout if applied
-    if (activeCoupon && activeCoupon.code) {
+    // If a manual coupon is active, pass it to checkout (which deactivates conflicting auto discounts)
+    // If store auto discount is active, do NOT pass a discount param, allowing Shopify's native Function to apply the auto discount!
+    if (activeCoupon && !activeCoupon.isAuto && activeCoupon.code) {
       checkoutUrl += (checkoutUrl.includes("?") ? "&" : "?") + `discount=${encodeURIComponent(activeCoupon.code)}`;
     }
 

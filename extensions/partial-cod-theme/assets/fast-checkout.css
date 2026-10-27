@@ -807,6 +807,39 @@
   padding: 0;
 }
 
+/* Auto Discount Card Special Styling */
+.pcod-auto-card {
+  border-color: #FDE68A;
+  background: #FFFDF5;
+}
+
+.pcod-auto-card:hover {
+  border-color: #F59E0B;
+  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.12);
+}
+
+.pcod-auto-card.applied {
+  background: #FEFCE8;
+  border-color: #EAB308;
+  box-shadow: 0 2px 6px rgba(234, 179, 8, 0.15);
+}
+
+.pcod-auto-badge {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3) !important;
+}
+
+.pcod-reapply-auto-btn {
+  background: #FEF3C7;
+  border-color: #FCD34D;
+  color: #B45309;
+}
+
+.pcod-reapply-auto-btn:hover {
+  background: #F59E0B;
+  color: #FFFFFF;
+}
+
 /* Prepaid Extra Discount Tag & Price Stacking */
 .pcod-prepaid-tag {
   background: linear-gradient(135deg, #FEF08A 0%, #FDE047 100%);

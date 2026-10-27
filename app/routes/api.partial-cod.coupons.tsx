@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { getPartialCodSettings, normalizeShopDomain } from "../db.server";
+import { unauthenticated } from "../shopify.server";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,11 +79,81 @@ async function handleRequest(request: Request) {
       badgeText: settings.prepaidDiscountBadge || "⚡ Extra 5% OFF on Prepaid",
     };
 
-    // If no code provided, just return available offers and prepaid configuration
+    // Query active automatic discounts on store to lock in by default
+    let autoDiscount: any = null;
+    try {
+      const auth = await unauthenticated.admin(cleanShop);
+      const autoQuery = `#graphql
+        query GetActiveAutoDiscounts {
+          discountNodes(first: 5, query: "status:active") {
+            nodes {
+              id
+              discount {
+                __typename
+                ... on DiscountAutomaticApp {
+                  title
+                  status
+                }
+                ... on DiscountAutomaticBasic {
+                  title
+                  status
+                }
+              }
+              metafield(namespace: "capped_discount", key: "configuration") {
+                value
+              }
+            }
+          }
+        }
+      `;
+      const autoRes = await auth.admin.graphql(autoQuery);
+      const autoData: any = await autoRes.json();
+      const nodes = autoData?.data?.discountNodes?.nodes || [];
+      for (const node of nodes) {
+        if (
+          node.discount?.__typename === "DiscountAutomaticApp" ||
+          node.discount?.__typename === "DiscountAutomaticBasic"
+        ) {
+          let config: any = {};
+          if (node.metafield?.value) {
+            try {
+              config = JSON.parse(node.metafield.value);
+            } catch {}
+          }
+          const percentage = config.percentage || 0;
+          const maxCap = config.maxCapAmount || 0;
+          const minSubtotal = config.minSubtotal || 0;
+          let calculatedAmount = 0;
+          if (percentage > 0 && subtotal > 0) {
+            calculatedAmount = (subtotal * percentage) / 100;
+            if (maxCap > 0 && calculatedAmount > maxCap) {
+              calculatedAmount = maxCap;
+            }
+          }
+          calculatedAmount = Math.min(calculatedAmount, subtotal);
+
+          autoDiscount = {
+            id: node.id,
+            title: node.discount.title || "Storewide Auto Discount",
+            percentage,
+            maxCap,
+            minSubtotal,
+            discountAmount: Math.round(calculatedAmount * 100) / 100,
+            isAuto: true,
+          };
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn("[Auto Discount Query Fallback]:", err);
+    }
+
+    // If no code provided, just return available offers, auto-discount, and prepaid configuration
     if (!code) {
       return json(
         {
           success: true,
+          autoDiscount,
           coupons: parsedCoupons,
           prepaidOffer,
         },

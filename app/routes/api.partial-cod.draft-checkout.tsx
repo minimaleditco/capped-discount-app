@@ -81,7 +81,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           : `gid://shopify/ProductVariant/${rawId}`;
         const qty = Number(it.quantity) || 1;
         const itemPrice = parseFloat(String(it.price || 0));
-        lineItemsInput.push({ variantId: gid, quantity: qty });
+        lineItemsInput.push({ variantId: gid, quantity: qty, price: itemPrice, title: it.title || "Item" });
         totalPrice += itemPrice * qty;
       }
     } else if (variantId) {
@@ -112,7 +112,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       }
 
-      lineItemsInput.push({ variantId: gid, quantity: qty });
+      lineItemsInput.push({ variantId: gid, quantity: qty, price: itemPrice, title: title || "Item" });
       totalPrice = itemPrice * qty;
     }
 
@@ -215,11 +215,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       deposit = Math.min(effectiveTotalPrice, deposit);
       balance = Math.max(0, Math.round((effectiveTotalPrice - deposit) * 100) / 100);
 
-      // Total deduction from original line items = Doorstep Balance + Coupon Discount
-      totalDeduction = Math.round((balance + couponDiscount) * 100) / 100;
+      // KEY FIX: Set line item originalUnitPrice to the advance deposit amount!
+      // This charges the exact deposit online, without Shopify treating the doorstep balance as a discount or displaying misleading "TOTAL SAVINGS"!
+      const lineItemsForPartialCod = lineItemsInput.map((it: any) => {
+        const itemTotal = (it.price || 0) * it.quantity;
+        const ratio = totalPrice > 0 ? itemTotal / totalPrice : 1 / lineItemsInput.length;
+        const itemDeposit = Math.round(deposit * ratio * 100) / 100;
+        const unitDeposit = (itemDeposit / it.quantity).toFixed(2);
+        const itemBalance = Math.max(0, Math.round((itemTotal - itemDeposit) * 100) / 100);
+
+        return {
+          variantId: it.variantId,
+          quantity: it.quantity,
+          originalUnitPrice: unitDeposit,
+          customAttributes: [
+            { key: "Advance Deposit Paid", value: `₹${unitDeposit}` },
+            { key: "Full Product Value", value: `₹${(it.price || 0).toFixed(2)}` },
+            { key: "Remaining Doorstep Balance Due", value: `₹${itemBalance.toFixed(2)}` },
+          ],
+        };
+      });
 
       draftOrderPayload = {
-        lineItems: lineItemsInput,
+        lineItems: lineItemsForPartialCod,
         tags: [
           "Partially Paid",
           "Partial COD",
@@ -245,16 +263,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ],
       };
 
-      if (totalDeduction > 0) {
-        draftOrderPayload.appliedDiscount = {
-          title: couponCode
-            ? `Doorstep COD Balance (₹${balance}) + Coupon ${couponCode} (-₹${couponDiscount})`
-            : "COD Balance due on Delivery (Doorstep)",
-          description: `Pay ₹${deposit} online now. Remaining ₹${balance} collected in cash upon delivery.`,
-          value: totalDeduction,
-          valueType: "FIXED_AMOUNT",
-        };
-      }
+      // Notice: We intentionally DO NOT set draftOrderPayload.appliedDiscount for the COD balance!
+      // This guarantees Shopify Checkout displays NO "Order discount: -₹540" and NO "TOTAL SAVINGS: ₹540"!
     }
 
     const draftOrderMutation = `#graphql
