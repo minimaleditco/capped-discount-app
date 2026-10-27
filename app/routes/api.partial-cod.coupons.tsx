@@ -68,6 +68,7 @@ async function handleRequest(request: Request) {
     let autoDiscount: any = null;
     let resData: any = null;
     let nodes: any[] = [];
+    let fetchError: any = null;
 
     try {
       const auth = await unauthenticated.admin(cleanShop);
@@ -286,7 +287,8 @@ async function handleRequest(request: Request) {
           });
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      fetchError = { message: err?.message, str: String(err) };
       console.warn("[Live Shopify Discounts Fetch Error]:", err);
     }
 
@@ -300,6 +302,7 @@ async function handleRequest(request: Request) {
           prepaidOffer,
           debug: {
             cleanShop,
+            fetchError,
             resData,
           },
         },
