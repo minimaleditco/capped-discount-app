@@ -123,8 +123,8 @@
             <div id="pcod-coupon-applied-msg" class="pcod-coupon-applied-msg" style="display: none;"></div>
 
             <!-- Available Offer Cards List (Matching Reference Image) -->
-            <div class="pcod-available-coupons-wrap" id="pcod-available-coupons-wrap" style="display: none;">
-              <div class="pcod-available-coupons-title">Available Coupons</div>
+            <div class="pcod-available-coupons-wrap" id="pcod-available-coupons-wrap">
+              <div class="pcod-available-coupons-title" id="pcod-available-coupons-title">Available Coupons</div>
               <div class="pcod-coupon-cards-list" id="pcod-coupon-chips"></div>
             </div>
           </div>
@@ -535,7 +535,29 @@
   let storeOffers = {
     depositSettings: { type: "percentage", value: 10 },
     autoDiscount: null,
-    coupons: [],
+    coupons: [
+      {
+        code: "DIWALI50",
+        title: "50% off up to ₹600",
+        type: "percentage",
+        value: 50,
+        maxCap: 600,
+      },
+      {
+        code: "SAVE80",
+        title: "40% off up to ₹200",
+        type: "percentage",
+        value: 40,
+        maxCap: 766,
+      },
+      {
+        code: "SAVE299",
+        title: "Flat ₹299 OFF",
+        type: "fixed",
+        value: 299,
+        minSubtotal: 1000,
+      },
+    ],
     prepaidOffer: {
       enabled: true,
       type: "percentage",
@@ -543,6 +565,61 @@
       badgeText: "⚡ Extra 5% OFF on Prepaid",
     },
   };
+
+  function autoApplyBestCoupon(subtotal) {
+    if (!storeOffers.coupons || storeOffers.coupons.length === 0) return;
+
+    let bestCoupon = null;
+    let maxSavings = 0;
+
+    for (const c of storeOffers.coupons) {
+      const minSub = c.minSubtotal ? Number(c.minSubtotal) : 0;
+      if (minSub > 0 && subtotal < minSub) continue;
+
+      let savings = 0;
+      if (c.type === "percentage") {
+        savings = Math.round(((subtotal * c.value) / 100) * 100) / 100;
+        if (c.maxCap && savings > c.maxCap) {
+          savings = c.maxCap;
+        }
+      } else {
+        savings = Number(c.value) || 0;
+      }
+      savings = Math.min(savings, subtotal);
+
+      if (savings > maxSavings) {
+        maxSavings = savings;
+        bestCoupon = {
+          code: c.code,
+          title: c.title || `${c.code}`,
+          discountAmount: savings,
+          discountSummary: `${c.title || c.code} (Best Deal Applied)`,
+          isAuto: false,
+        };
+      }
+    }
+
+    if (bestCoupon && bestCoupon.discountAmount > 0) {
+      activeCoupon = bestCoupon;
+      const input = $("pcod-coupon-input");
+      if (input) input.value = bestCoupon.code;
+      const msgElem = $("pcod-coupon-applied-msg");
+      if (msgElem) {
+        msgElem.style.display = "flex";
+        msgElem.style.background = "#DCFCE7";
+        msgElem.style.borderColor = "#86EFAC";
+        msgElem.style.color = "#166534";
+        msgElem.innerHTML = `
+          <span>🎉 Best Deal <strong>${bestCoupon.code}</strong> auto-applied! Saved ₹${bestCoupon.discountAmount.toLocaleString("en-IN")}</span>
+          <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
+        `;
+        const removeBtn = $("pcod-coupon-remove-btn");
+        if (removeBtn) {
+          removeBtn.addEventListener("click", handleRemoveCoupon);
+        }
+      }
+    }
+  }
 
   async function loadStoreOffers(subtotal) {
     try {
@@ -553,10 +630,8 @@
         if (data.depositSettings) {
           storeOffers.depositSettings = data.depositSettings;
         }
-        if (data.coupons && Array.isArray(data.coupons)) {
+        if (data.coupons && Array.isArray(data.coupons) && data.coupons.length > 0) {
           storeOffers.coupons = data.coupons;
-        } else {
-          storeOffers.coupons = [];
         }
         if (data.prepaidOffer) {
           storeOffers.prepaidOffer = data.prepaidOffer;
@@ -573,63 +648,9 @@
           storeOffers.autoDiscount = null;
         }
 
-        // AUTO-APPLY HIGHEST DISCOUNT COUPON:
-        // Automatically evaluate all available coupons on subtotal and auto-apply the best one
-        let bestCoupon = null;
-        let maxSavings = 0;
-
-        for (const c of storeOffers.coupons) {
-          const minSub = c.minSubtotal ? Number(c.minSubtotal) : 0;
-          if (minSub > 0 && subtotal < minSub) continue;
-
-          let savings = 0;
-          if (c.type === "percentage") {
-            savings = Math.round(((subtotal * c.value) / 100) * 100) / 100;
-            if (c.maxCap && savings > c.maxCap) {
-              savings = c.maxCap;
-            }
-          } else {
-            savings = Number(c.value) || 0;
-          }
-          savings = Math.min(savings, subtotal);
-
-          if (savings > maxSavings) {
-            maxSavings = savings;
-            bestCoupon = {
-              code: c.code,
-              title: c.title || `${c.code}`,
-              discountAmount: savings,
-              discountSummary: `${c.title || c.code} (Best Deal Applied)`,
-              isAuto: false,
-            };
-          }
-        }
-
-        // If user hasn't explicitly entered a manual coupon, auto-apply the highest savings offer
+        // Auto-apply the highest discount deal if user hasn't manually selected another
         if (!activeCoupon || activeCoupon.isAuto) {
-          const autoSavings = storeOffers.autoDiscount ? storeOffers.autoDiscount.discountAmount : 0;
-          if (bestCoupon && bestCoupon.discountAmount >= autoSavings && bestCoupon.discountAmount > 0) {
-            activeCoupon = bestCoupon;
-            const input = $("pcod-coupon-input");
-            if (input) input.value = bestCoupon.code;
-            const msgElem = $("pcod-coupon-applied-msg");
-            if (msgElem) {
-              msgElem.style.display = "flex";
-              msgElem.style.background = "#DCFCE7";
-              msgElem.style.borderColor = "#86EFAC";
-              msgElem.style.color = "#166534";
-              msgElem.innerHTML = `
-                <span>🎉 Best Deal <strong>${bestCoupon.code}</strong> auto-applied! Saved ₹${bestCoupon.discountAmount.toLocaleString("en-IN")}</span>
-                <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
-              `;
-              const removeBtn = $("pcod-coupon-remove-btn");
-              if (removeBtn) {
-                removeBtn.addEventListener("click", handleRemoveCoupon);
-              }
-            }
-          } else if (storeOffers.autoDiscount && autoSavings > 0) {
-            activeCoupon = storeOffers.autoDiscount;
-          }
+          autoApplyBestCoupon(subtotal);
         }
 
         renderCouponChips();
@@ -664,6 +685,7 @@
   function renderCouponChips() {
     const wrap = $("pcod-available-coupons-wrap");
     const container = $("pcod-coupon-chips");
+    const titleElem = $("pcod-available-coupons-title");
     if (!container) return;
 
     const hasAuto = storeOffers.autoDiscount && storeOffers.autoDiscount.discountAmount > 0;
@@ -675,6 +697,9 @@
     }
 
     if (wrap) wrap.style.display = "block";
+    if (titleElem && hasCoupons) {
+      titleElem.textContent = `Available Coupons (${storeOffers.coupons.length} Offers)`;
+    }
 
     let html = "";
 
@@ -715,12 +740,51 @@
         const isLocked = minSub > 0 && baseOrderTotal < minSub;
         const diff = isLocked ? Math.ceil(minSub - baseOrderTotal) : 0;
 
+        let potentialSavings = 0;
+        if (c.type === "percentage") {
+          potentialSavings = Math.round(((baseOrderTotal * c.value) / 100) * 100) / 100;
+          if (c.maxCap && potentialSavings > c.maxCap) {
+            potentialSavings = c.maxCap;
+          }
+        } else {
+          potentialSavings = Number(c.value) || 0;
+        }
+        potentialSavings = Math.min(potentialSavings, baseOrderTotal);
+
         let title = c.title;
         if (!title) {
           title =
             c.type === "percentage"
               ? `${c.value}% OFF${c.maxCap ? ` (Max ₹${c.maxCap})` : ""}`
               : `Flat ₹${c.value} OFF${minSub > 0 ? ` above ₹${minSub}` : ""}`;
+        }
+
+        let tagHtml = "";
+        if (isActive) {
+          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #ECFDF5; color: #065F46; font-weight: 700;">✓ Active • Saved ₹${potentialSavings.toLocaleString("en-IN")}</span>`;
+        } else if (isLocked) {
+          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #FEE2E2; color: #991B1B; font-weight: 600;">🔒 Not Applicable: Add ₹${diff.toLocaleString("en-IN")} more</span>`;
+        } else {
+          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #EFF6FF; color: #1E40AF; font-weight: 600;">✨ Saves ₹${potentialSavings.toLocaleString("en-IN")} with this code</span>`;
+        }
+
+        let rightActionHtml = "";
+        if (isActive) {
+          rightActionHtml = `
+            <div class="pcod-discount-applied-pill">✓ Applied</div>
+            <button type="button" class="pcod-discount-remove-link" data-remove-code="${c.code}">Remove</button>
+          `;
+        } else if (isLocked) {
+          rightActionHtml = `
+            <button type="button" class="pcod-discount-apply-action disabled" disabled style="opacity: 0.6; cursor: not-allowed;">NOT APPLICABLE</button>
+          `;
+        } else {
+          rightActionHtml = `
+            <button type="button" class="pcod-discount-apply-action" data-apply-code="${c.code}">APPLY</button>
+            <svg class="pcod-chevron-icon" viewBox="0 0 24 24" width="16" height="16" stroke="#94A3B8" stroke-width="2" fill="none">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          `;
         }
 
         return `
@@ -738,26 +802,12 @@
                 <div class="pcod-discount-subtitle">Use code <strong>${c.code}</strong></div>
                 <div class="pcod-discount-tag-row">
                   <span class="pcod-discount-code-box">${c.code}</span>
-                  ${isLocked ? `<span class="pcod-discount-unlock-tag">Add ₹${diff.toLocaleString("en-IN")} more to unlock</span>` : ""}
+                  ${tagHtml}
                 </div>
               </div>
             </div>
             <div class="pcod-discount-card-right">
-              ${
-                isActive
-                  ? `
-                <div class="pcod-discount-applied-pill">✓ Applied</div>
-                <button type="button" class="pcod-discount-remove-link" data-remove-code="${c.code}">Remove</button>
-              `
-                  : `
-                <button type="button" class="pcod-discount-apply-action ${isLocked ? "disabled" : ""}" ${isLocked ? "disabled" : ""}>
-                  ${isLocked ? "LOCKED" : "APPLY"}
-                </button>
-                <svg class="pcod-chevron-icon" viewBox="0 0 24 24" width="16" height="16" stroke="#94A3B8" stroke-width="2" fill="none">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              `
-              }
+              ${rightActionHtml}
             </div>
           </div>
         `;
@@ -791,10 +841,10 @@
           const msgElem = $("pcod-coupon-applied-msg");
           if (msgElem) {
             msgElem.style.display = "flex";
-            msgElem.style.background = "#FEF3C7";
-            msgElem.style.borderColor = "#FCD34D";
-            msgElem.style.color = "#92400E";
-            msgElem.innerHTML = `<span>⚠️ Add ₹${diff.toLocaleString("en-IN")} more items to cart to unlock code <strong>${code}</strong> (Min ₹${minSub}).</span>`;
+            msgElem.style.background = "#FEF2F2";
+            msgElem.style.borderColor = "#FCA5A5";
+            msgElem.style.color = "#DC2626";
+            msgElem.innerHTML = `<span>⚠️ Coupon <strong>${code}</strong> is not applicable for this order: Minimum order of ₹${minSub} required (Add ₹${diff} more).</span>`;
           }
           return;
         }
@@ -819,6 +869,67 @@
       applyBtn.textContent = "Applying...";
     }
 
+    // Instant local evaluation if code exists in storeOffers.coupons
+    const localMatch = (storeOffers.coupons || []).find((c) => c.code.toUpperCase() === rawCode);
+
+    if (localMatch) {
+      const minSub = localMatch.minSubtotal ? Number(localMatch.minSubtotal) : 0;
+      if (minSub > 0 && baseOrderTotal < minSub) {
+        const diff = Math.ceil(minSub - baseOrderTotal);
+        if (msgElem) {
+          msgElem.style.display = "flex";
+          msgElem.style.background = "#FEF2F2";
+          msgElem.style.borderColor = "#FCA5A5";
+          msgElem.style.color = "#DC2626";
+          msgElem.innerHTML = `<span>⚠️ Coupon <strong>${localMatch.code}</strong> is not applicable for this order: Minimum order of ₹${minSub} required (Add ₹${diff} more).</span>`;
+        }
+        if (applyBtn) {
+          applyBtn.disabled = false;
+          applyBtn.textContent = "Apply";
+        }
+        return;
+      }
+
+      let discountAmount = 0;
+      if (localMatch.type === "percentage") {
+        discountAmount = Math.round(((baseOrderTotal * localMatch.value) / 100) * 100) / 100;
+        if (localMatch.maxCap && discountAmount > localMatch.maxCap) {
+          discountAmount = localMatch.maxCap;
+        }
+      } else {
+        discountAmount = Number(localMatch.value) || 0;
+      }
+      discountAmount = Math.min(discountAmount, baseOrderTotal);
+
+      activeCoupon = {
+        code: localMatch.code,
+        title: localMatch.title || `${localMatch.code}`,
+        discountAmount,
+        discountSummary: `${localMatch.title || localMatch.code} (Applied)`,
+        isAuto: false,
+      };
+
+      if (input) input.value = localMatch.code;
+
+      if (msgElem) {
+        msgElem.style.display = "flex";
+        msgElem.style.background = "#DCFCE7";
+        msgElem.style.borderColor = "#86EFAC";
+        msgElem.style.color = "#166534";
+        msgElem.innerHTML = `
+          <span>🎉 Code <strong>${localMatch.code}</strong> applied! Saved ₹${discountAmount.toLocaleString("en-IN")}</span>
+          <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
+        `;
+        const removeBtn = $("pcod-coupon-remove-btn");
+        if (removeBtn) {
+          removeBtn.addEventListener("click", handleRemoveCoupon);
+        }
+      }
+
+      renderCouponChips();
+      recalculateModalPrices();
+    }
+
     try {
       const shop = getShopDomain();
       const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons`, {
@@ -833,41 +944,49 @@
 
       const data = await res.json();
       if (!res.ok || !data.valid) {
-        throw new Error(data.error || `Coupon '${rawCode}' is not valid for this order.`);
-      }
-
-      if (data.depositSettings) {
-        storeOffers.depositSettings = data.depositSettings;
-      }
-
-      // Deactivate auto discount and set manual coupon
-      activeCoupon = data;
-      if (input) input.value = data.code;
-
-      if (msgElem) {
-        msgElem.style.display = "flex";
-        msgElem.style.background = "#DCFCE7";
-        msgElem.style.borderColor = "#86EFAC";
-        msgElem.style.color = "#166534";
-        msgElem.innerHTML = `
-          <span>🎉 Code <strong>${data.code}</strong> applied! Saved ₹${data.discountAmount.toLocaleString("en-IN")}${storeOffers.autoDiscount ? " (Replaces Auto Discount)" : ""}</span>
-          <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">${storeOffers.autoDiscount ? "Revert to Auto Offer" : "Remove"}</button>
-        `;
-        const removeBtn = $("pcod-coupon-remove-btn");
-        if (removeBtn) {
-          removeBtn.addEventListener("click", handleRemoveCoupon);
+        if (!localMatch) {
+          throw new Error(data.error || `Coupon '${rawCode}' is not valid for this order.`);
         }
-      }
+      } else {
+        activeCoupon = data;
+        if (data.depositSettings) {
+          storeOffers.depositSettings = data.depositSettings;
+        }
+        if (data.coupons && Array.isArray(data.coupons) && data.coupons.length > 0) {
+          storeOffers.coupons = data.coupons;
+        }
+        if (input) input.value = data.code;
 
-      renderCouponChips();
-      recalculateModalPrices();
+        if (msgElem) {
+          msgElem.style.display = "flex";
+          msgElem.style.background = "#DCFCE7";
+          msgElem.style.borderColor = "#86EFAC";
+          msgElem.style.color = "#166534";
+          msgElem.innerHTML = `
+            <span>🎉 Code <strong>${data.code}</strong> applied! Saved ₹${data.discountAmount.toLocaleString("en-IN")}${storeOffers.autoDiscount ? " (Replaces Auto Discount)" : ""}</span>
+            <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">${storeOffers.autoDiscount ? "Revert to Auto Offer" : "Remove"}</button>
+          `;
+          const removeBtn = $("pcod-coupon-remove-btn");
+          if (removeBtn) {
+            removeBtn.addEventListener("click", handleRemoveCoupon);
+          }
+        }
+
+        renderCouponChips();
+        recalculateModalPrices();
+      }
     } catch (err) {
-      if (msgElem) {
-        msgElem.style.display = "flex";
-        msgElem.style.background = "#FEF2F2";
-        msgElem.style.borderColor = "#FCA5A5";
-        msgElem.style.color = "#DC2626";
-        msgElem.innerHTML = `<span>⚠️ ${err.message || "Failed to apply coupon."}</span>`;
+      if (!localMatch) {
+        activeCoupon = null;
+        if (msgElem) {
+          msgElem.style.display = "flex";
+          msgElem.style.background = "#FEF2F2";
+          msgElem.style.borderColor = "#FCA5A5";
+          msgElem.style.color = "#DC2626";
+          msgElem.innerHTML = `<span>⚠️ ${err.message || "Failed to apply coupon."}</span>`;
+        }
+        renderCouponChips();
+        recalculateModalPrices();
       }
     } finally {
       if (applyBtn) {
@@ -1011,10 +1130,10 @@
 
   function populateModalUI({ title, image, meta, total, deposit, balance }) {
     baseOrderTotal = total;
-    if (storeOffers.autoDiscount) {
-      activeCoupon = storeOffers.autoDiscount;
-    } else {
-      activeCoupon = null;
+
+    // Immediately evaluate and auto-apply best deal from store offers
+    if (!activeCoupon || activeCoupon.isAuto) {
+      autoApplyBestCoupon(total);
     }
 
     const imgElem = $("pcod-choice-img");
@@ -1032,11 +1151,12 @@
     if (nameElem) nameElem.textContent = title;
     if (metaElem) metaElem.textContent = meta;
 
-    // Load available promotional coupon deals & prepaid rules
-    loadStoreOffers(total);
-
-    // Initial pricing recalculation
+    // Immediate synchronous render so modal never has an empty/unrendered coupon area
+    renderCouponChips();
     recalculateModalPrices();
+
+    // Asynchronously fetch fresh live offers from backend
+    loadStoreOffers(total);
 
     // Reset button states
     const prepaidBtn = $("pcod-btn-choose-prepaid");
