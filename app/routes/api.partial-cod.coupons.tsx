@@ -296,6 +296,17 @@ async function handleRequest(request: Request) {
           autoDiscount,
           coupons: liveCoupons,
           prepaidOffer,
+          debug: {
+            nodeCount: nodes.length,
+            graphQLErrors: resData?.errors || null,
+            firstFew: nodes.slice(0, 5).map((n: any) => ({
+              id: n.id,
+              typename: n.discount?.__typename,
+              title: n.discount?.title,
+              status: n.discount?.status,
+              code: n.discount?.codes?.nodes?.[0]?.code,
+            })),
+          },
         },
         { headers: corsHeaders }
       );
