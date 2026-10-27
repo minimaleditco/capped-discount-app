@@ -46,6 +46,12 @@
 
         <!-- Inner Scrollable Container (Effortless scrolling on mobile & small screens) -->
         <div class="pcod-modal-scroll-area" id="pcod-modal-scroll-area">
+          <!-- Slide-Down Best Deal Announcement Banner -->
+          <div id="pcod-auto-deal-banner" class="pcod-auto-deal-banner" style="display: none;">
+            <span class="pcod-deal-icon">🎉</span>
+            <span id="pcod-auto-deal-text" class="pcod-deal-text"><strong>Best Deal Auto-Applied:</strong> Extra savings unlocked!</span>
+          </div>
+
           <!-- Product / Cart Mini Summary -->
           <div class="pcod-choice-product">
             <img id="pcod-choice-img" src="" alt="Item" class="pcod-choice-thumb" />
@@ -81,17 +87,21 @@
             <div class="pcod-option-card pcod-card-cod" id="pcod-card-cod">
               <div class="pcod-card-top">
                 <span class="pcod-badge pcod-badge-orange">📦 Pay Rest on Delivery</span>
-                <div class="pcod-card-price-split">
-                  <span class="pcod-price-now" id="pcod-cod-now">₹100 Now</span>
-                  <span class="pcod-price-doorstep" id="pcod-cod-doorstep">+ ₹0 COD</span>
+                <span class="pcod-save-badge" id="pcod-cod-tag" style="display: none;">Save ₹0</span>
+                <div class="pcod-price-stack">
+                  <div class="pcod-card-price-split">
+                    <span class="pcod-price-now" id="pcod-cod-now">₹0 Now</span>
+                    <span class="pcod-price-doorstep" id="pcod-cod-doorstep">+ ₹0 COD</span>
+                  </div>
+                  <span class="pcod-original-price" id="pcod-cod-orig-price" style="display: none;">Total ₹0</span>
                 </div>
               </div>
               <div class="pcod-card-body">
                 <div class="pcod-card-title">Option 2: Partial Cash on Delivery</div>
-                <div class="pcod-card-desc">Pay only <strong id="pcod-cod-desc-deposit">₹100</strong> advance deposit online to confirm shipping. Pay the remaining <strong id="pcod-cod-desc-balance">₹0</strong> in cash at your doorstep.</div>
+                <div class="pcod-card-desc">Pay only <strong id="pcod-cod-desc-deposit">₹0</strong> advance deposit online to confirm shipping. Pay the remaining <strong id="pcod-cod-desc-balance">₹0</strong> in cash at your doorstep.<span id="pcod-cod-desc-saving" style="display: none; color: #059669; font-weight: 600;"></span></div>
               </div>
               <button type="button" class="pcod-select-btn pcod-btn-cod" id="pcod-btn-choose-cod">
-                <span class="pcod-btn-text" id="pcod-cod-btn-label">Pay ₹100 Deposit & Confirm COD →</span>
+                <span class="pcod-btn-text" id="pcod-cod-btn-label">Pay Deposit & Confirm COD →</span>
               </button>
             </div>
           </div>
@@ -406,6 +416,15 @@
     return activeProduct;
   }
 
+  function calculateDeposit(amount) {
+    const ds = storeOffers.depositSettings || { type: "percentage", value: 10 };
+    let dep = ds.type === "percentage"
+      ? Math.round((amount * (Number(ds.value) || 10)) / 100)
+      : (Number(ds.value) || 100);
+    dep = Math.max(1, Math.min(amount, dep));
+    return dep;
+  }
+
   async function openProductChoiceModal() {
     activeMode = "product";
     ensureModalExists();
@@ -415,7 +434,7 @@
     const details = await resolveProductDetails();
 
     const total = details.price * details.quantity;
-    const deposit = total > 100 ? 100 : total;
+    const deposit = calculateDeposit(total);
     const balance = Math.max(0, Math.round((total - deposit) * 100) / 100);
 
     populateModalUI({
@@ -486,7 +505,7 @@
       }
 
       const total = originalTotal;
-      const deposit = total > 100 ? 100 : total;
+      const deposit = calculateDeposit(total);
       const balance = Math.max(0, Math.round((total - deposit) * 100) / 100);
 
       const firstItem = cart.items[0];
@@ -514,6 +533,7 @@
   let baseOrderTotal = 0;
   let activeCoupon = null;
   let storeOffers = {
+    depositSettings: { type: "percentage", value: 10 },
     autoDiscount: null,
     coupons: [],
     prepaidOffer: {
@@ -530,6 +550,9 @@
       const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons?shop=${encodeURIComponent(shop)}&subtotal=${subtotal}`);
       if (res.ok) {
         const data = await res.json();
+        if (data.depositSettings) {
+          storeOffers.depositSettings = data.depositSettings;
+        }
         if (data.coupons && Array.isArray(data.coupons)) {
           storeOffers.coupons = data.coupons;
         } else {
@@ -546,21 +569,76 @@
             discountSummary: `${data.autoDiscount.title} (Store Auto Offer)`,
             isAuto: true,
           };
-          if (!activeCoupon) {
-            activeCoupon = storeOffers.autoDiscount;
-          }
         } else {
           storeOffers.autoDiscount = null;
-          if (activeCoupon && activeCoupon.isAuto) {
-            activeCoupon = null;
+        }
+
+        // AUTO-APPLY HIGHEST DISCOUNT COUPON:
+        // Automatically evaluate all available coupons on subtotal and auto-apply the best one
+        let bestCoupon = null;
+        let maxSavings = 0;
+
+        for (const c of storeOffers.coupons) {
+          const minSub = c.minSubtotal ? Number(c.minSubtotal) : 0;
+          if (minSub > 0 && subtotal < minSub) continue;
+
+          let savings = 0;
+          if (c.type === "percentage") {
+            savings = Math.round(((subtotal * c.value) / 100) * 100) / 100;
+            if (c.maxCap && savings > c.maxCap) {
+              savings = c.maxCap;
+            }
+          } else {
+            savings = Number(c.value) || 0;
+          }
+          savings = Math.min(savings, subtotal);
+
+          if (savings > maxSavings) {
+            maxSavings = savings;
+            bestCoupon = {
+              code: c.code,
+              title: c.title || `${c.code}`,
+              discountAmount: savings,
+              discountSummary: `${c.title || c.code} (Best Deal Applied)`,
+              isAuto: false,
+            };
           }
         }
+
+        // If user hasn't explicitly entered a manual coupon, auto-apply the highest savings offer
+        if (!activeCoupon || activeCoupon.isAuto) {
+          const autoSavings = storeOffers.autoDiscount ? storeOffers.autoDiscount.discountAmount : 0;
+          if (bestCoupon && bestCoupon.discountAmount >= autoSavings && bestCoupon.discountAmount > 0) {
+            activeCoupon = bestCoupon;
+            const input = $("pcod-coupon-input");
+            if (input) input.value = bestCoupon.code;
+            const msgElem = $("pcod-coupon-applied-msg");
+            if (msgElem) {
+              msgElem.style.display = "flex";
+              msgElem.style.background = "#DCFCE7";
+              msgElem.style.borderColor = "#86EFAC";
+              msgElem.style.color = "#166534";
+              msgElem.innerHTML = `
+                <span>🎉 Best Deal <strong>${bestCoupon.code}</strong> auto-applied! Saved ₹${bestCoupon.discountAmount.toLocaleString("en-IN")}</span>
+                <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
+              `;
+              const removeBtn = $("pcod-coupon-remove-btn");
+              if (removeBtn) {
+                removeBtn.addEventListener("click", handleRemoveCoupon);
+              }
+            }
+          } else if (storeOffers.autoDiscount && autoSavings > 0) {
+            activeCoupon = storeOffers.autoDiscount;
+          }
+        }
+
         renderCouponChips();
         recalculateModalPrices();
       }
     } catch (e) {
       console.warn("[Store Offers Fetch Fallback]:", e);
       renderCouponChips();
+      recalculateModalPrices();
     }
   }
 
@@ -758,6 +836,10 @@
         throw new Error(data.error || `Coupon '${rawCode}' is not valid for this order.`);
       }
 
+      if (data.depositSettings) {
+        storeOffers.depositSettings = data.depositSettings;
+      }
+
       // Deactivate auto discount and set manual coupon
       activeCoupon = data;
       if (input) input.value = data.code;
@@ -837,6 +919,18 @@
     const prepaidTotal = Math.max(0, Math.round((effectiveSubtotal - extraPrepaid) * 100) / 100);
     const totalPrepaidSavings = Math.round((baseOrderTotal - prepaidTotal) * 100) / 100;
 
+    // 0. Update Deal Announcement Banner (Slide-down)
+    const dealBanner = $("pcod-auto-deal-banner");
+    const dealText = $("pcod-auto-deal-text");
+    if (dealBanner && dealText) {
+      if (couponDiscount > 0 && activeCoupon) {
+        dealText.innerHTML = `<strong>Best Deal '${activeCoupon.code}' Auto-Applied:</strong> You save <strong>₹${couponDiscount.toLocaleString("en-IN")}</strong> on this order!`;
+        dealBanner.style.display = "flex";
+      } else {
+        dealBanner.style.display = "none";
+      }
+    }
+
     // 1. Update Option 1 (Full Prepaid) UI
     const prepaidPrice = $("pcod-prepaid-price");
     const prepaidOrigPrice = $("pcod-prepaid-orig-price");
@@ -876,19 +970,42 @@
     }
 
     // 2. Update Option 2 (Partial COD) UI
-    let deposit = effectiveSubtotal > 100 ? 100 : effectiveSubtotal;
+    const deposit = calculateDeposit(effectiveSubtotal);
     const balance = Math.max(0, Math.round((effectiveSubtotal - deposit) * 100) / 100);
 
     const codNow = $("pcod-cod-now");
     const codDoorstep = $("pcod-cod-doorstep");
+    const codOrigPrice = $("pcod-cod-orig-price");
+    const codTag = $("pcod-cod-tag");
     const descDeposit = $("pcod-cod-desc-deposit");
     const descBalance = $("pcod-cod-desc-balance");
+    const descSaving = $("pcod-cod-desc-saving");
     const codBtnLabel = $("pcod-cod-btn-label");
 
     if (codNow) codNow.textContent = `₹${deposit.toLocaleString("en-IN")} Now`;
     if (codDoorstep) codDoorstep.textContent = `+ ₹${balance.toLocaleString("en-IN")} on Delivery`;
     if (descDeposit) descDeposit.textContent = `₹${deposit.toLocaleString("en-IN")}`;
     if (descBalance) descBalance.textContent = `₹${balance.toLocaleString("en-IN")}`;
+
+    if (couponDiscount > 0) {
+      if (codOrigPrice) {
+        codOrigPrice.textContent = `Total ₹${baseOrderTotal.toLocaleString("en-IN")}`;
+        codOrigPrice.style.display = "inline";
+      }
+      if (codTag) {
+        codTag.textContent = `Save ₹${couponDiscount.toLocaleString("en-IN")}`;
+        codTag.style.display = "inline";
+      }
+      if (descSaving) {
+        descSaving.textContent = ` (Total order reduced from ₹${baseOrderTotal.toLocaleString("en-IN")} to ₹${effectiveSubtotal.toLocaleString("en-IN")})`;
+        descSaving.style.display = "inline";
+      }
+    } else {
+      if (codOrigPrice) codOrigPrice.style.display = "none";
+      if (codTag) codTag.style.display = "none";
+      if (descSaving) descSaving.style.display = "none";
+    }
+
     if (codBtnLabel) codBtnLabel.textContent = `Pay ₹${deposit.toLocaleString("en-IN")} Deposit & Confirm COD →`;
   }
 
@@ -1170,6 +1287,9 @@
 
     try {
       const shop = getShopDomain();
+      const couponDiscount = activeCoupon ? activeCoupon.discountAmount : 0;
+      const effectiveSubtotal = Math.max(0, baseOrderTotal - couponDiscount);
+      const calculatedDeposit = isPrepaid ? 0 : calculateDeposit(effectiveSubtotal);
       let payload;
 
       if (activeMode === "cart" && activeCart) {
@@ -1177,6 +1297,7 @@
           shop,
           isPrepaid: !!isPrepaid,
           prepaidDiscount: prepaidDiscount || 0,
+          deposit: calculatedDeposit,
           items: activeCart.items.map((it) => ({
             variantId: it.id,
             quantity: it.quantity,
@@ -1195,6 +1316,7 @@
           shop,
           isPrepaid: !!isPrepaid,
           prepaidDiscount: prepaidDiscount || 0,
+          deposit: calculatedDeposit,
           variantId,
           quantity,
           price,
