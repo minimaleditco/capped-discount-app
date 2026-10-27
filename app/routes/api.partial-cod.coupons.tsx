@@ -288,16 +288,7 @@ async function handleRequest(request: Request) {
         }
       }
     } catch (err: any) {
-      fetchError = { message: err?.message, str: String(err) };
-      console.warn("[Live Shopify Discounts Fetch Error]:", err);
-    }
-
-    let allDbSessions: any[] = [];
-    try {
-      const { prisma } = await import("../db.server");
-      allDbSessions = await prisma.session.findMany({ select: { id: true, shop: true } });
-    } catch (e: any) {
-      allDbSessions = [{ error: e?.message }];
+      console.warn("[Live Shopify Discounts Fetch Error]:", err?.message || err);
     }
 
     // If no code was entered, return the live list of coupons and auto discount
@@ -308,12 +299,6 @@ async function handleRequest(request: Request) {
           autoDiscount,
           coupons: liveCoupons,
           prepaidOffer,
-          debug: {
-            cleanShop,
-            allDbSessions,
-            fetchError,
-            resData,
-          },
         },
         { headers: corsHeaders }
       );
