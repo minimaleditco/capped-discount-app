@@ -123,14 +123,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    // Verify WhatsApp OTP if enabled
-    const settings = await getPartialCodSettings(shopToUse);
-    const customerPhone = String(body.phone || body.customerPhone || "").replace(/[^0-9]/g, "");
-    const otpToken = String(body.otpToken || body.token || "").trim();
+    const isPrepaid = body.isPrepaid === true;
+    const prepaidDiscount = Math.max(0, parseFloat(String(body.prepaidDiscount || 0)));
     const couponCode = String(body.couponCode || "").trim().toUpperCase();
     const couponDiscount = Math.max(0, parseFloat(String(body.couponDiscount || 0)));
 
-    if (settings.whatsappEnabled) {
+    // Verify WhatsApp / SMS OTP only for COD orders (Prepaid orders pay upfront online, so no fake order risk)
+    const settings = await getPartialCodSettings(shopToUse);
+    const customerPhone = String(body.phone || body.customerPhone || "").replace(/[^0-9]/g, "");
+    const otpToken = String(body.otpToken || body.token || "").trim();
+
+    if (!isPrepaid && settings.whatsappEnabled) {
       const isVerified = await validateVerificationToken(shopToUse, customerPhone, otpToken);
       if (!isVerified) {
         return json(
@@ -147,64 +150,111 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Apply coupon discount to subtotal if provided
     const effectiveTotalPrice = Math.max(0, Math.round((totalPrice - couponDiscount) * 100) / 100);
 
-    // Determine dynamic risk-based deposit and remaining balance
-    const rawItems = Array.isArray(body.items) ? body.items : [];
-    const evaluation = await evaluateDepositRules(shop, {
-      totalPrice: effectiveTotalPrice,
-      currency: "INR",
-      lineItems: rawItems.map((it: any) => ({
-        title: it.title,
-        sku: it.sku,
-        variantId: it.variantId || it.id,
-        price: Number(it.price) || 0,
-        quantity: Number(it.quantity) || 1,
-      })),
-      pincode: body.pincode || body.shippingAddress?.zip,
-      shippingAddress: body.shippingAddress,
-    });
+    let deposit = effectiveTotalPrice;
+    let balance = 0;
+    let totalDeduction = 0;
+    let draftOrderPayload: any;
 
-    let deposit = evaluation.deposit;
-    if (body.deposit && Number(body.deposit) > 0) {
-      deposit = Math.max(deposit, Number(body.deposit));
-    }
-    // Ensure deposit does not exceed effective total
-    deposit = Math.min(effectiveTotalPrice, deposit);
-    const balance = Math.max(0, Math.round((effectiveTotalPrice - deposit) * 100) / 100);
+    if (isPrepaid) {
+      // 1. FULL PREPAID ORDER
+      const finalPrepaidPrice = Math.max(0, Math.round((effectiveTotalPrice - prepaidDiscount) * 100) / 100);
+      deposit = finalPrepaidPrice;
+      balance = 0;
+      totalDeduction = Math.round((couponDiscount + prepaidDiscount) * 100) / 100;
 
-    const draftOrderPayload: any = {
-      lineItems: lineItemsInput,
-      tags: [
-        "Partially Paid",
-        "Partial COD",
-        `Deposit Paid: ₹${deposit}`,
-        `Doorstep Balance: ₹${balance}`,
-        `Collect ₹${balance} on Delivery`,
-        evaluation.matchedRule
-          ? `Rule: ${evaluation.matchedRule.conditionType}`
-          : "Rule: Store Default",
-        ...(customerPhone ? [`SMS Verified: +91${customerPhone}`] : []),
-        ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
-      ],
-      note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}${couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""}${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`,
-      customAttributes: [
-        { key: "Payment Status", value: "Partially Paid" },
-        { key: "Advance Deposit Paid", value: `₹${deposit.toFixed(2)}` },
-        { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
-        ...(customerPhone ? [{ key: "Verified Mobile", value: customerPhone }] : []),
-        ...(couponCode ? [{ key: "Coupon Code", value: couponCode }, { key: "Coupon Discount", value: `₹${couponDiscount.toFixed(2)}` }] : []),
-        { key: "Deposit Rule Applied", value: evaluation.ruleSummary },
-        { key: "partial_cod_order", value: "true" },
-      ],
-    };
-
-    // Apply the remaining balance as a deduction discount so checkout charges ONLY the deposit
-    if (balance > 0) {
-      draftOrderPayload.appliedDiscount = {
-        title: "COD Balance due on Delivery (Doorstep)",
-        description: `Pay ₹${deposit} online now. Remaining ₹${balance} collected in cash upon delivery.`,
-        value: balance,
-        valueType: "FIXED_AMOUNT",
+      draftOrderPayload = {
+        lineItems: lineItemsInput,
+        tags: [
+          "Prepaid",
+          "Paid Online",
+          `Total Paid Online: ₹${finalPrepaidPrice}`,
+          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
+          ...(prepaidDiscount > 0 ? [`Extra Prepaid Discount: ₹${prepaidDiscount}`] : []),
+        ],
+        note: `[FULL PREPAID ORDER] • Amount Paid: ₹${finalPrepaidPrice.toFixed(2)}${couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""}${prepaidDiscount > 0 ? `\n• Extra Prepaid Savings: -₹${prepaidDiscount.toFixed(2)}` : ""}`,
+        customAttributes: [
+          { key: "Payment Type", value: "Prepaid Online" },
+          { key: "Prepaid Total Paid", value: `₹${finalPrepaidPrice.toFixed(2)}` },
+          ...(couponCode ? [{ key: "Coupon Code", value: couponCode }, { key: "Coupon Discount", value: `₹${couponDiscount.toFixed(2)}` }] : []),
+          ...(prepaidDiscount > 0 ? [{ key: "Extra Prepaid Savings", value: `₹${prepaidDiscount.toFixed(2)}` }] : []),
+          { key: "single_coupon_policy_enforced", value: "true" },
+        ],
       };
+
+      if (totalDeduction > 0) {
+        draftOrderPayload.appliedDiscount = {
+          title: couponCode
+            ? `Promotional Discount (${couponCode}${prepaidDiscount > 0 ? " + Extra Prepaid" : ""})`
+            : "Prepaid Order Savings",
+          description: `Total discount applied: ₹${totalDeduction.toFixed(2)}`,
+          value: totalDeduction,
+          valueType: "FIXED_AMOUNT",
+        };
+      }
+    } else {
+      // 2. PARTIAL CASH ON DELIVERY (COD) ORDER
+      const rawItems = Array.isArray(body.items) ? body.items : [];
+      const evaluation = await evaluateDepositRules(shop, {
+        totalPrice: effectiveTotalPrice,
+        currency: "INR",
+        lineItems: rawItems.map((it: any) => ({
+          title: it.title,
+          sku: it.sku,
+          variantId: it.variantId || it.id,
+          price: Number(it.price) || 0,
+          quantity: Number(it.quantity) || 1,
+        })),
+        pincode: body.pincode || body.shippingAddress?.zip,
+        shippingAddress: body.shippingAddress,
+      });
+
+      deposit = evaluation.deposit;
+      if (body.deposit && Number(body.deposit) > 0) {
+        deposit = Math.max(deposit, Number(body.deposit));
+      }
+      deposit = Math.min(effectiveTotalPrice, deposit);
+      balance = Math.max(0, Math.round((effectiveTotalPrice - deposit) * 100) / 100);
+
+      // Total deduction from original line items = Doorstep Balance + Coupon Discount
+      totalDeduction = Math.round((balance + couponDiscount) * 100) / 100;
+
+      draftOrderPayload = {
+        lineItems: lineItemsInput,
+        tags: [
+          "Partially Paid",
+          "Partial COD",
+          `Deposit Paid: ₹${deposit}`,
+          `Doorstep Balance: ₹${balance}`,
+          `Collect ₹${balance} on Delivery`,
+          evaluation.matchedRule
+            ? `Rule: ${evaluation.matchedRule.conditionType}`
+            : "Rule: Store Default",
+          ...(customerPhone ? [`SMS Verified: +91${customerPhone}`] : []),
+          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
+        ],
+        note: `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${deposit.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${evaluation.ruleSummary}${couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""}${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`,
+        customAttributes: [
+          { key: "Payment Status", value: "Partially Paid" },
+          { key: "Advance Deposit Paid", value: `₹${deposit.toFixed(2)}` },
+          { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
+          ...(customerPhone ? [{ key: "Verified Mobile", value: customerPhone }] : []),
+          ...(couponCode ? [{ key: "Coupon Code", value: couponCode }, { key: "Coupon Discount", value: `₹${couponDiscount.toFixed(2)}` }] : []),
+          { key: "Deposit Rule Applied", value: evaluation.ruleSummary },
+          { key: "partial_cod_order", value: "true" },
+          { key: "single_coupon_policy_enforced", value: "true" },
+        ],
+      };
+
+      if (totalDeduction > 0) {
+        draftOrderPayload.appliedDiscount = {
+          title: couponCode
+            ? `Doorstep COD Balance (₹${balance}) + Coupon ${couponCode} (-₹${couponDiscount})`
+            : "COD Balance due on Delivery (Doorstep)",
+          description: `Pay ₹${deposit} online now. Remaining ₹${balance} collected in cash upon delivery.`,
+          value: totalDeduction,
+          valueType: "FIXED_AMOUNT",
+        };
+      }
     }
 
     const draftOrderMutation = `#graphql

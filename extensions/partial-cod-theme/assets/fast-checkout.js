@@ -812,15 +812,37 @@
       prepaidBtn.disabled = true;
       prepaidBtn.style.opacity = "0.8";
     }
-    if (label) label.textContent = "Opening Standard Checkout...";
+    if (label) label.textContent = "Opening Checkout...";
 
+    // Calculate if extra prepaid discount is active
+    let extraPrepaid = 0;
+    const pOffer = storeOffers.prepaidOffer;
+    const couponDiscount = activeCoupon ? activeCoupon.discountAmount : 0;
+    const effectiveSubtotal = Math.max(0, baseOrderTotal - couponDiscount);
+    if (pOffer && pOffer.enabled && pOffer.value > 0) {
+      if (pOffer.type === "percentage") {
+        extraPrepaid = Math.round(((effectiveSubtotal * pOffer.value) / 100) * 100) / 100;
+      } else {
+        extraPrepaid = pOffer.value;
+      }
+      extraPrepaid = Math.min(extraPrepaid, effectiveSubtotal);
+    }
+
+    // If an extra prepaid discount is active, create a single prepaid draft order
+    // to charge the exact discounted price and prevent any extra coupon entry at checkout
+    if (extraPrepaid > 0) {
+      executeDraftCheckout("", "", true, extraPrepaid);
+      return;
+    }
+
+    // Standard Shopify checkout handoff with the single active coupon code
     let checkoutUrl = "/checkout";
     if (activeMode !== "cart" && activeProduct && activeProduct.variantId) {
       const { variantId, quantity } = activeProduct;
       checkoutUrl = `/cart/${variantId}:${quantity}`;
     }
 
-    // Pass coupon code to checkout if applied
+    // Pass single coupon code to checkout if applied
     if (activeCoupon && activeCoupon.code) {
       checkoutUrl += (checkoutUrl.includes("?") ? "&" : "?") + `discount=${encodeURIComponent(activeCoupon.code)}`;
     }
@@ -1005,10 +1027,11 @@
     }
   }
 
-  async function executeDraftCheckout(phone, otpToken) {
+  async function executeDraftCheckout(phone, otpToken, isPrepaid, prepaidDiscount) {
     const codBtn = $("pcod-btn-choose-cod");
-    const label = $("pcod-cod-btn-label");
-    if (label) label.textContent = "Opening Partial COD Checkout...";
+    const prepaidBtn = $("pcod-btn-choose-prepaid");
+    const label = isPrepaid ? $("pcod-prepaid-btn-label") : $("pcod-cod-btn-label");
+    if (label) label.textContent = isPrepaid ? "Opening Prepaid Checkout..." : "Opening Partial COD Checkout...";
 
     try {
       const shop = getShopDomain();
@@ -1017,6 +1040,8 @@
       if (activeMode === "cart" && activeCart) {
         payload = {
           shop,
+          isPrepaid: !!isPrepaid,
+          prepaidDiscount: prepaidDiscount || 0,
           items: activeCart.items.map((it) => ({
             variantId: it.id,
             quantity: it.quantity,
@@ -1033,6 +1058,8 @@
         const { variantId, quantity, price, title } = activeProduct;
         payload = {
           shop,
+          isPrepaid: !!isPrepaid,
+          prepaidDiscount: prepaidDiscount || 0,
           variantId,
           quantity,
           price,
@@ -1052,19 +1079,26 @@
 
       const data = await res.json();
       if (!res.ok || !data.success || !data.invoiceUrl) {
-        throw new Error(data.error || "Unable to open Partial COD checkout.");
+        throw new Error(data.error || "Unable to open checkout.");
       }
 
       // Redirect to Shopify Native Draft Checkout
       window.location.href = data.invoiceUrl;
     } catch (err) {
-      console.error("[Partial COD Checkout Error]:", err);
-      alert(err.message || "Failed to open Partial COD checkout. Please try again.");
+      console.error("[Checkout Error]:", err);
+      alert(err.message || "Failed to open checkout. Please try again.");
       if (codBtn) {
         codBtn.disabled = false;
         codBtn.style.opacity = "1";
       }
-      if (label) label.textContent = "Pay Deposit & Confirm COD →";
+      if (prepaidBtn) {
+        prepaidBtn.disabled = false;
+        prepaidBtn.style.opacity = "1";
+      }
+      const codLabel = $("pcod-cod-btn-label");
+      if (codLabel) codLabel.textContent = "Pay Deposit & Confirm COD →";
+      const prepLabel = $("pcod-prepaid-btn-label");
+      if (prepLabel) prepLabel.textContent = "Pay Full Online →";
     }
   }
 
