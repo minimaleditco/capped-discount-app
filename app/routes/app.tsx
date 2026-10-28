@@ -59,6 +59,7 @@ export default function AppLayout() {
         </Link>
         <Link to="/app/cod">Partial COD Settings</Link>
         <Link to="/app/deposit-rules">Deposit Rules</Link>
+        <Link to="/app/orders">Orders & Support</Link>
         <Link to="/app/discounts/new">Create Capped Discount</Link>
       </NavMenu>
       <Outlet />
