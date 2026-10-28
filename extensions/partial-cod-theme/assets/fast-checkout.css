@@ -1,83 +1,134 @@
-/* Partial COD & Prepaid Choice Modal Styles */
+/* ==========================================================================
+   Partial COD & Fast Checkout - shadcn/ui Design System
+   Palette: Zinc / Slate (Crisp 1px borders, -0.02em letter-spacing, subtle elevations)
+   ========================================================================== */
 
+:root {
+  --pcod-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --pcod-bg: #FFFFFF;
+  --pcod-fg: #09090B;
+  --pcod-muted-bg: #F4F4F5;
+  --pcod-muted-fg: #71717A;
+  --pcod-border: #E4E4E7;
+  --pcod-border-subtle: #F4F4F5;
+  --pcod-ring: #18181B;
+  --pcod-primary: #18181B;
+  --pcod-primary-fg: #FAFAFA;
+  --pcod-success-bg: #ECFDF5;
+  --pcod-success-border: #A7F3D0;
+  --pcod-success-fg: #047857;
+  --pcod-warning-bg: #FFFBEB;
+  --pcod-warning-border: #FDE68A;
+  --pcod-warning-fg: #B45309;
+  --pcod-error-bg: #FEF2F2;
+  --pcod-error-border: #FECACA;
+  --pcod-error-fg: #DC2626;
+  --pcod-blue-primary: #2563EB;
+  --pcod-blue-hover: #1D4ED8;
+  --pcod-blue-subtle: #EFF6FF;
+  --pcod-blue-border: #BFDBFE;
+  --pcod-radius-sm: 6px;
+  --pcod-radius-md: 8px;
+  --pcod-radius-lg: 12px;
+  --pcod-radius-xl: 16px;
+  --pcod-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --pcod-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --pcod-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --pcod-shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* Base Wrapper */
 .pcod-fast-checkout-wrapper {
   display: block;
   width: 100%;
-}
-
-.pcod-btn {
-  display: block;
-  width: 100%;
-  padding: 14px 20px;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  text-align: left;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
 }
 
+/* Storefront Trigger Button (shadcn/ui Button variant="default" size="lg") */
+.pcod-btn {
+  display: block;
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: var(--pcod-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  font-family: var(--pcod-font);
+  text-align: left;
+  box-shadow: var(--pcod-shadow-sm);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  background-color: var(--pcod-primary);
+  color: var(--pcod-primary-fg);
+}
+
 .pcod-btn:hover {
+  background-color: #27272A;
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--pcod-shadow-md);
+}
+
+.pcod-btn:active {
+  transform: translateY(0);
 }
 
 .pcod-btn-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .pcod-btn-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .pcod-bolt-icon {
-  width: 18px;
-  height: 18px;
-  color: #F59E0B;
+  width: 17px;
+  height: 17px;
+  color: #FACC15;
   flex-shrink: 0;
 }
 
 .pcod-btn-title {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 .pcod-btn-sub {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.18);
-  padding: 4px 8px;
-  border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
 }
 
-/* Modal Backdrop */
+/* ==========================================================================
+   Backdrop & Dialog Shell (shadcn/ui Dialog & Drawer)
+   ========================================================================== */
+
 .pcod-modal-backdrop {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  background: rgba(9, 9, 11, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2147483647;
-  padding: 14px;
+  padding: 16px;
   box-sizing: border-box;
-  animation: pcodFadeIn 0.2s ease-out;
+  animation: pcodFadeIn 0.18s ease-out;
 }
 
 @keyframes pcodFadeIn {
@@ -85,103 +136,125 @@
   to { opacity: 1; }
 }
 
-@keyframes pcodScaleUp {
-  from { opacity: 0; transform: scale(0.96) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes pcodScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-@keyframes pcodSlideUp {
+@keyframes pcodSlideUpDrawer {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
 
-/* Choice Modal Card (Shorter, scrollable, compact) */
+/* Modal Card / Dialog Container */
 .pcod-choice-modal {
   width: 100%;
   max-width: 440px;
-  max-height: min(88vh, 720px);
+  max-height: min(90vh, 740px);
   display: flex;
   flex-direction: column;
-  background: #FFFFFF;
-  border-radius: 18px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08);
-  padding: 16px 18px;
+  background: var(--pcod-bg);
+  border-radius: var(--pcod-radius-xl);
+  border: 1px solid var(--pcod-border);
+  box-shadow: var(--pcod-shadow-modal);
+  padding: 18px 20px 20px 20px;
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: #0F172A;
+  font-family: var(--pcod-font);
+  color: var(--pcod-fg);
   overflow: hidden;
   position: relative;
-  animation: pcodScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: pcodScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Mobile Pull Handle Indicator */
+/* Mobile Pull Handle (shadcn Drawer pill) */
 .pcod-mobile-pull-handle {
   display: none;
-  width: 40px;
+  width: 36px;
   height: 4px;
-  background: #CBD5E1;
-  border-radius: 999px;
-  margin: 0 auto 10px auto;
+  background: #D4D4D8;
+  border-radius: 9999px;
+  margin: 0 auto 12px auto;
   flex-shrink: 0;
 }
 
-/* Sticky Header (Always visible at top) */
+/* Dialog Header (shadcn/ui DialogHeader) */
 .pcod-choice-header {
   flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
+  padding-bottom: 2px;
 }
 
 .pcod-shield-badge {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #059669;
-  background: #ECFDF5;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pcod-muted-fg);
+  background: var(--pcod-muted-bg);
+  border: 1px solid var(--pcod-border);
   padding: 2.5px 8px;
   border-radius: 9999px;
-  display: inline-block;
-  margin-bottom: 4px;
-  letter-spacing: 0.02em;
+  margin-bottom: 5px;
+  letter-spacing: 0.01em;
 }
 
 .pcod-choice-title {
   margin: 0;
   font-size: 17px;
-  font-weight: 700;
-  color: #0F172A;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  color: var(--pcod-fg);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
+/* Close Button (shadcn/ui Button variant="ghost" size="icon") */
 .pcod-choice-close {
   background: transparent;
-  border: none;
-  font-size: 24px;
-  color: #94A3B8;
+  border: 1px solid transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--pcod-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pcod-muted-fg);
   cursor: pointer;
-  padding: 0 4px;
+  padding: 0;
+  font-size: 18px;
   line-height: 1;
-  transition: color 0.15s ease;
+  transition: all 0.15s ease;
+  margin-top: -2px;
+  margin-right: -4px;
 }
 
 .pcod-choice-close:hover {
-  color: #0F172A;
+  background: var(--pcod-muted-bg);
+  color: var(--pcod-fg);
 }
 
-/* Inner Scrollable Container (Effortless smooth scrolling) */
+/* Scroll Area (shadcn ScrollArea) */
 .pcod-modal-scroll-area {
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding-right: 4px;
-  margin-right: -4px;
+  padding-right: 2px;
+  margin-right: -2px;
 }
 
 .pcod-modal-scroll-area::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 
 .pcod-modal-scroll-area::-webkit-scrollbar-track {
@@ -189,33 +262,72 @@
 }
 
 .pcod-modal-scroll-area::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #E4E4E7;
   border-radius: 9999px;
 }
 
 .pcod-modal-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: #A1A1AA;
 }
 
-/* Compact Product Bar */
+/* Slide-Down Best Deal Announcement Banner (shadcn Alert) */
+.pcod-auto-deal-banner {
+  background: var(--pcod-success-bg);
+  border: 1px solid var(--pcod-success-border);
+  color: var(--pcod-success-fg);
+  border-radius: var(--pcod-radius-md);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: pcodSlideDownAlert 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--pcod-shadow-sm);
+}
+
+.pcod-auto-deal-banner strong {
+  font-weight: 600;
+  color: #065F46;
+}
+
+.pcod-deal-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+@keyframes pcodSlideDownAlert {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Product Mini Card (shadcn Card muted) */
 .pcod-choice-product {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 8px 10px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  margin-bottom: 10px;
+  background: var(--pcod-muted-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-lg);
+  margin-bottom: 12px;
 }
 
 .pcod-choice-thumb {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--pcod-radius-md);
   background: #FFFFFF;
-  border: 1px solid #E2E8F0;
+  border: 1px solid var(--pcod-border);
   flex-shrink: 0;
 }
 
@@ -227,394 +339,330 @@
 .pcod-choice-prod-name {
   font-size: 13px;
   font-weight: 600;
-  color: #0F172A;
+  color: var(--pcod-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
 
 .pcod-choice-prod-meta {
   font-size: 11.5px;
-  color: #64748B;
-  margin-top: 1px;
+  color: var(--pcod-muted-fg);
+  margin-top: 1.5px;
 }
 
-/* Cards Container */
+/* ==========================================================================
+   Payment Option Cards (shadcn/ui Radio Group Item / Card)
+   ========================================================================== */
+
 .pcod-cards-container {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-/* Option Card */
 .pcod-option-card {
-  border: 1.5px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: #FFFFFF;
-  transition: all 0.18s ease;
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-lg);
+  padding: 13px 14px;
+  background: var(--pcod-bg);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+  position: relative;
+  box-shadow: var(--pcod-shadow-sm);
 }
 
 .pcod-option-card:hover {
-  border-color: #94A3B8;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+  border-color: #A1A1AA;
 }
 
+/* Card Top Row */
 .pcod-card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
   gap: 6px;
 }
 
+/* shadcn Badges */
 .pcod-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 7px;
-  border-radius: 5px;
-  letter-spacing: 0.02em;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .pcod-badge-green {
-  background: #DCFCE7;
-  color: #15803D;
+  background: var(--pcod-muted-bg);
+  color: var(--pcod-fg);
+  border: 1px solid var(--pcod-border);
 }
 
 .pcod-badge-orange {
-  background: #FEF3C7;
-  color: #B45309;
+  background: var(--pcod-blue-subtle);
+  color: var(--pcod-blue-primary);
+  border: 1px solid var(--pcod-blue-border);
+  font-weight: 600;
+}
+
+/* Extra Discount Tag */
+.pcod-prepaid-tag {
+  background: var(--pcod-warning-bg);
+  color: var(--pcod-warning-fg);
+  border: 1px solid var(--pcod-warning-border);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+
+/* Price Stacking */
+.pcod-price-stack {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .pcod-card-price {
   font-size: 17px;
   font-weight: 700;
-  color: #0F172A;
+  color: var(--pcod-fg);
+  letter-spacing: -0.02em;
 }
 
 .pcod-card-price-split {
   display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 4px;
 }
 
 .pcod-price-now {
-  font-size: 16px;
+  font-size: 16.5px;
   font-weight: 700;
-  color: #2563EB;
+  color: var(--pcod-blue-primary);
+  letter-spacing: -0.02em;
 }
 
 .pcod-price-doorstep {
   font-size: 12px;
+  font-weight: 500;
+  color: var(--pcod-muted-fg);
+}
+
+.pcod-original-price {
+  font-size: 12px;
+  color: #A1A1AA;
+  text-decoration: line-through;
+  font-weight: 400;
+}
+
+.pcod-save-badge {
+  font-size: 10px;
   font-weight: 600;
-  color: #64748B;
+  color: var(--pcod-success-fg);
+  background: var(--pcod-success-bg);
+  border: 1px solid var(--pcod-success-border);
+  padding: 1.5px 6px;
+  border-radius: 9999px;
+}
+
+/* Card Body */
+.pcod-card-body {
+  margin-bottom: 10px;
 }
 
 .pcod-card-title {
   font-size: 14px;
-  font-weight: 700;
-  color: #0F172A;
+  font-weight: 600;
+  color: var(--pcod-fg);
+  letter-spacing: -0.015em;
   margin-bottom: 2px;
 }
 
 .pcod-card-desc {
   font-size: 12px;
-  color: #475569;
-  line-height: 1.4;
-  margin-bottom: 10px;
+  color: var(--pcod-muted-fg);
+  line-height: 1.45;
 }
 
-/* Action Buttons */
+/* Action Buttons (shadcn/ui Button) */
 .pcod-select-btn {
   width: 100%;
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: var(--pcod-radius-md);
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  border: none;
+  border: 1px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--pcod-font);
+  letter-spacing: -0.01em;
+  box-shadow: var(--pcod-shadow-sm);
 }
 
 .pcod-btn-prepaid {
-  background: #0F172A;
-  color: #FFFFFF;
+  background: var(--pcod-primary);
+  color: var(--pcod-primary-fg);
 }
 
 .pcod-btn-prepaid:hover {
-  background: #1E293B;
-  transform: translateY(-1px);
+  background: #27272A;
+  box-shadow: var(--pcod-shadow-md);
+}
+
+.pcod-btn-prepaid:active {
+  transform: scale(0.99);
 }
 
 .pcod-btn-cod {
-  background: #2563EB;
+  background: var(--pcod-blue-primary);
   color: #FFFFFF;
 }
 
 .pcod-btn-cod:hover {
-  background: #1D4ED8;
-  transform: translateY(-1px);
+  background: var(--pcod-blue-hover);
+  box-shadow: var(--pcod-shadow-md);
+}
+
+.pcod-btn-cod:active {
+  transform: scale(0.99);
 }
 
 .pcod-select-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.65;
   cursor: not-allowed;
   transform: none;
 }
 
-/* Footer Note */
-.pcod-choice-footer {
-  text-align: center;
-  font-size: 11px;
-  color: #64748B;
-  padding: 8px 0 2px 0;
-}
+/* ==========================================================================
+   Coupon & Offers Section (shadcn/ui Card + Collapsible / Accordion)
+   ========================================================================== */
 
-/* OTP Verification Step */
-.pcod-otp-step {
-  padding: 8px 0;
-  animation: pcodFadeIn 0.2s ease-out;
-}
-
-.pcod-otp-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.pcod-otp-back-btn {
-  background: none;
-  border: none;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #2563EB;
-  cursor: pointer;
-  padding: 0;
-}
-
-.pcod-otp-back-btn:hover {
-  text-decoration: underline;
-}
-
-.pcod-otp-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #0F172A;
-}
-
-.pcod-otp-desc {
-  font-size: 12.5px;
-  color: #475569;
-  line-height: 1.4;
-  margin-bottom: 12px;
-}
-
-.pcod-otp-input-wrap {
-  display: flex;
-  align-items: center;
-  background: #F8FAFC;
-  border: 1.5px solid #CBD5E1;
-  border-radius: 9px;
-  overflow: hidden;
-  margin-bottom: 10px;
-  transition: border-color 0.15s ease;
-}
-
-.pcod-otp-input-wrap:focus-within {
-  border-color: #2563EB;
-  background: #FFFFFF;
-}
-
-.pcod-otp-prefix {
-  padding: 10px 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #475569;
-  background: #E2E8F0;
-  border-right: 1px solid #CBD5E1;
-}
-
-.pcod-otp-input {
-  flex: 1;
-  padding: 10px 12px;
-  font-size: 15px;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: #0F172A;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.pcod-otp-input.pcod-code {
-  text-align: center;
-  font-size: 20px;
-  letter-spacing: 0.25em;
-}
-
-.pcod-otp-action-btn {
-  width: 100%;
-  padding: 11px 18px;
-  background: #2563EB;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 9px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.pcod-otp-action-btn:hover {
-  background: #1D4ED8;
-}
-
-.pcod-otp-action-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.pcod-otp-sent-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #059669;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.pcod-otp-error {
-  font-size: 12px;
-  color: #DC2626;
-  background: #FEF2F2;
-  border: 1px solid #FCA5A5;
-  padding: 8px 10px;
-  border-radius: 7px;
-  margin-top: 8px;
-}
-
-.pcod-otp-resend {
-  text-align: center;
-  margin-top: 8px;
-}
-
-.pcod-otp-resend-btn {
-  background: none;
-  border: none;
-  font-size: 12px;
-  color: #64748B;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.pcod-otp-resend-btn:hover {
-  color: #2563EB;
-}
-
-/* Coupon & Promo Code Section (Below Payment Options) */
 .pcod-coupon-section {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 12px;
+  background: var(--pcod-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-lg);
+  padding: 12px 14px;
   margin-bottom: 12px;
+  box-shadow: var(--pcod-shadow-sm);
 }
 
 .pcod-coupon-section-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 7px;
+  margin-bottom: 10px;
 }
 
 .pcod-coupon-section-icon {
-  font-size: 14px;
+  font-size: 13px;
+  color: var(--pcod-muted-fg);
 }
 
 .pcod-coupon-section-heading {
-  font-size: 12px;
-  font-weight: 700;
-  color: #334155;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--pcod-muted-fg);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
+/* Coupon Input Row (shadcn/ui Input + Button) */
 .pcod-coupon-input-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .pcod-coupon-input {
   flex: 1;
-  padding: 8px 10px;
+  padding: 8px 12px;
   font-size: 12.5px;
+  font-family: monospace;
   font-weight: 600;
-  color: #0F172A;
-  background: #FFFFFF;
-  border: 1px solid #CBD5E1;
-  border-radius: 7px;
+  color: var(--pcod-fg);
+  background: var(--pcod-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-md);
   outline: none;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  transition: border-color 0.15s ease;
+  letter-spacing: 0.06em;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.pcod-coupon-input::placeholder {
+  font-family: var(--pcod-font);
+  font-weight: 400;
+  color: #A1A1AA;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .pcod-coupon-input:focus {
-  border-color: #2563EB;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--pcod-ring);
+  box-shadow: 0 0 0 1px var(--pcod-ring);
 }
 
 .pcod-coupon-apply-btn {
   padding: 8px 14px;
-  background: #0F172A;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 7px;
+  background: var(--pcod-primary);
+  color: var(--pcod-primary-fg);
+  border: 1px solid transparent;
+  border-radius: var(--pcod-radius-md);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
+  font-family: var(--pcod-font);
+  box-shadow: var(--pcod-shadow-sm);
 }
 
 .pcod-coupon-apply-btn:hover {
-  background: #1E293B;
+  background: #27272A;
 }
 
 .pcod-coupon-apply-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
+/* Coupon Applied / Status Message Banner */
 .pcod-coupon-applied-msg {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: #DCFCE7;
-  border: 1px solid #86EFAC;
-  border-radius: 6px;
+  margin-top: 10px;
+  padding: 7px 10px;
+  background: var(--pcod-success-bg);
+  border: 1px solid var(--pcod-success-border);
+  border-radius: var(--pcod-radius-md);
   font-size: 12px;
-  font-weight: 600;
-  color: #166534;
+  font-weight: 500;
+  color: var(--pcod-success-fg);
 }
 
 .pcod-coupon-remove-btn {
   background: none;
   border: none;
-  color: #DC2626;
-  font-size: 11px;
-  font-weight: 700;
+  color: var(--pcod-error-fg);
+  font-size: 11.5px;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
   padding: 0;
@@ -622,21 +670,21 @@
 }
 
 .pcod-available-coupons-wrap {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed #E2E8F0;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--pcod-border);
 }
 
 .pcod-available-coupons-title {
   font-size: 11px;
-  font-weight: 700;
-  color: #64748B;
+  font-weight: 600;
+  color: var(--pcod-muted-fg);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   margin-bottom: 8px;
 }
 
-/* Rich Discount Cards List (Reference Image 2) */
+/* Coupon Cards List (shadcn/ui Voucher Cards) */
 .pcod-coupon-cards-list {
   display: flex;
   flex-direction: column;
@@ -647,31 +695,29 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 10px 12px;
+  background: var(--pcod-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-md);
+  padding: 9px 12px;
   cursor: pointer;
-  transition: all 0.18s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.16s ease;
   box-sizing: border-box;
 }
 
 .pcod-discount-card:hover {
-  border-color: #2563EB;
-  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.08);
+  border-color: #A1A1AA;
+  background: #FAFAFA;
 }
 
 .pcod-discount-card.applied {
-  background: #F0FDF4;
-  border-color: #10B981;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
+  background: var(--pcod-success-bg);
+  border-color: var(--pcod-success-border);
 }
 
 .pcod-discount-card.locked {
   background: #FAFAFA;
-  border-color: #E2E8F0;
-  cursor: pointer;
+  border-color: var(--pcod-border);
+  opacity: 0.85;
 }
 
 .pcod-discount-card-left {
@@ -683,20 +729,22 @@
 }
 
 .pcod-discount-badge-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--pcod-radius-md);
+  background: var(--pcod-muted-bg);
+  border: 1px solid var(--pcod-border);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+  color: var(--pcod-fg);
 }
 
 .pcod-discount-card.applied .pcod-discount-badge-icon {
-  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.25);
+  background: #D1FAE5;
+  border-color: #A7F3D0;
+  color: var(--pcod-success-fg);
 }
 
 .pcod-discount-info {
@@ -705,15 +753,16 @@
 }
 
 .pcod-discount-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0F172A;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pcod-fg);
+  letter-spacing: -0.01em;
   line-height: 1.25;
 }
 
 .pcod-discount-subtitle {
-  font-size: 11.5px;
-  color: #64748B;
+  font-size: 11px;
+  color: var(--pcod-muted-fg);
   margin-top: 1px;
 }
 
@@ -721,28 +770,27 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 3.5px;
   flex-wrap: wrap;
 }
 
 .pcod-discount-code-box {
   display: inline-block;
-  padding: 2px 7px;
-  background: #F1F5F9;
-  border: 1px solid #CBD5E1;
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #334155;
-  letter-spacing: 0.03em;
+  padding: 1.5px 6px;
+  background: var(--pcod-muted-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--pcod-fg);
+  letter-spacing: 0.04em;
 }
 
 .pcod-discount-unlock-tag {
   display: inline-block;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #B45309;
-  background: #FEF3C7;
+  font-size: 10px;
+  font-weight: 500;
   padding: 1.5px 6px;
   border-radius: 4px;
 }
@@ -755,27 +803,30 @@
   flex-shrink: 0;
 }
 
+/* Action button inside coupon card (shadcn Button variant="outline" size="sm") */
 .pcod-discount-apply-action {
   padding: 4px 10px;
   font-size: 11px;
-  font-weight: 700;
-  border-radius: 6px;
-  border: 1px solid #BFDBFE;
-  background: #EFF6FF;
-  color: #2563EB;
+  font-weight: 600;
+  border-radius: var(--pcod-radius-sm);
+  border: 1px solid var(--pcod-border);
+  background: var(--pcod-bg);
+  color: var(--pcod-fg);
   cursor: pointer;
   transition: all 0.15s ease;
+  font-family: var(--pcod-font);
 }
 
 .pcod-discount-apply-action:hover {
-  background: #2563EB;
-  color: #FFFFFF;
+  background: var(--pcod-muted-bg);
+  border-color: #A1A1AA;
 }
 
 .pcod-discount-apply-action.disabled {
-  background: #F1F5F9;
-  border-color: #E2E8F0;
-  color: #94A3B8;
+  background: var(--pcod-muted-bg);
+  border-color: var(--pcod-border);
+  color: #A1A1AA;
+  cursor: not-allowed;
 }
 
 .pcod-chevron-icon {
@@ -783,105 +834,254 @@
   transition: transform 0.15s ease;
 }
 
-.pcod-discount-card:hover .pcod-chevron-icon {
-  transform: translateY(1px);
-}
-
 .pcod-discount-applied-pill {
   font-size: 11px;
-  font-weight: 700;
-  color: #15803D;
-  background: #DCFCE7;
-  padding: 3px 8px;
-  border-radius: 12px;
+  font-weight: 600;
+  color: var(--pcod-success-fg);
+  background: #D1FAE5;
+  border: 1px solid var(--pcod-success-border);
+  padding: 2.5px 7px;
+  border-radius: 9999px;
 }
 
 .pcod-discount-remove-link {
   background: none;
   border: none;
   font-size: 11px;
-  font-weight: 600;
-  color: #DC2626;
+  font-weight: 500;
+  color: var(--pcod-error-fg);
   text-decoration: underline;
   cursor: pointer;
   padding: 0;
 }
 
-/* Auto Discount Card Special Styling */
+/* Auto Discount Card Styling */
 .pcod-auto-card {
-  border-color: #FDE68A;
-  background: #FFFDF5;
+  border-color: var(--pcod-warning-border);
+  background: #FFFEF7;
 }
 
 .pcod-auto-card:hover {
-  border-color: #F59E0B;
-  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.12);
+  border-color: #FBBF24;
 }
 
 .pcod-auto-card.applied {
-  background: #FEFCE8;
-  border-color: #EAB308;
-  box-shadow: 0 2px 6px rgba(234, 179, 8, 0.15);
-}
-
-.pcod-auto-badge {
-  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
-  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3) !important;
+  background: var(--pcod-warning-bg);
+  border-color: #FCD34D;
 }
 
 .pcod-reapply-auto-btn {
-  background: #FEF3C7;
-  border-color: #FCD34D;
-  color: #B45309;
+  background: var(--pcod-warning-bg);
+  border-color: var(--pcod-warning-border);
+  color: var(--pcod-warning-fg);
 }
 
 .pcod-reapply-auto-btn:hover {
-  background: #F59E0B;
-  color: #FFFFFF;
+  background: #FEF3C7;
 }
 
-/* Prepaid Extra Discount Tag & Price Stacking */
-.pcod-prepaid-tag {
-  background: linear-gradient(135deg, #FEF08A 0%, #FDE047 100%);
-  color: #854D0E;
-  border: 1px solid #FACC15;
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 2.5px 7px;
-  border-radius: 14px;
-  letter-spacing: 0.01em;
-  box-shadow: 0 1px 2px rgba(234, 179, 8, 0.2);
-  margin-left: auto;
-  margin-right: 6px;
+/* ==========================================================================
+   SMS / WhatsApp OTP Verification Step (shadcn InputOTP)
+   ========================================================================== */
+
+.pcod-otp-step {
+  padding: 4px 0;
+  animation: pcodFadeIn 0.2s ease-out;
 }
 
-.pcod-price-stack {
+.pcod-otp-header {
   display: flex;
-  align-items: baseline;
-  gap: 5px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.pcod-original-price {
-  font-size: 12.5px;
-  color: #94A3B8;
-  text-decoration: line-through;
+.pcod-otp-back-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
   font-weight: 500;
+  color: var(--pcod-muted-fg);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.pcod-save-badge {
-  font-size: 10px;
-  font-weight: 700;
-  color: #15803D;
-  background: #DCFCE7;
-  border: 1px solid #86EFAC;
-  padding: 2px 5px;
-  border-radius: 4px;
+.pcod-otp-back-btn:hover {
+  color: var(--pcod-fg);
 }
 
-/* Mobile Responsiveness: Bottom Sheet & Tight Dimensions */
-@media (max-width: 600px) {
+.pcod-otp-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pcod-fg);
+  letter-spacing: -0.02em;
+}
+
+.pcod-otp-desc {
+  font-size: 12px;
+  color: var(--pcod-muted-fg);
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.pcod-otp-input-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--pcod-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+  transition: all 0.15s ease;
+}
+
+.pcod-otp-input-wrap:focus-within {
+  border-color: var(--pcod-ring);
+  box-shadow: 0 0 0 1px var(--pcod-ring);
+}
+
+.pcod-otp-prefix {
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--pcod-muted-fg);
+  background: var(--pcod-muted-bg);
+  border-right: 1px solid var(--pcod-border);
+}
+
+.pcod-otp-input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--pcod-fg);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Authentic shadcn InputOTP 6-Box Slots */
+.pcod-otp-slots-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 16px 0;
+}
+
+.pcod-otp-slot {
+  width: 44px;
+  height: 48px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--pcod-fg);
+  background: var(--pcod-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-md);
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+  box-shadow: var(--pcod-shadow-sm);
+}
+
+.pcod-otp-slot:focus {
+  border-color: var(--pcod-ring);
+  box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.15);
+}
+
+.pcod-otp-slot.filled {
+  border-color: #A1A1AA;
+}
+
+.pcod-otp-action-btn {
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--pcod-primary);
+  color: var(--pcod-primary-fg);
+  border: 1px solid transparent;
+  border-radius: var(--pcod-radius-md);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--pcod-shadow-sm);
+  font-family: var(--pcod-font);
+}
+
+.pcod-otp-action-btn:hover {
+  background: #27272A;
+}
+
+.pcod-otp-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pcod-otp-sent-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pcod-success-fg);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pcod-otp-error {
+  font-size: 12px;
+  color: var(--pcod-error-fg);
+  background: var(--pcod-error-bg);
+  border: 1px solid var(--pcod-error-border);
+  padding: 8px 12px;
+  border-radius: var(--pcod-radius-md);
+  margin-top: 10px;
+}
+
+.pcod-otp-resend {
+  text-align: center;
+  margin-top: 12px;
+}
+
+.pcod-otp-resend-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--pcod-muted-fg);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.pcod-otp-resend-btn:hover {
+  color: var(--pcod-fg);
+}
+
+/* ==========================================================================
+   Footer Trust Note
+   ========================================================================== */
+
+.pcod-choice-footer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--pcod-muted-fg);
+  padding: 10px 0 2px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   Mobile Bottom Sheet (shadcn Drawer on max-width 640px)
+   ========================================================================== */
+
+@media (max-width: 640px) {
   .pcod-modal-backdrop {
     align-items: flex-end;
     padding: 0;
@@ -890,13 +1090,13 @@
   .pcod-choice-modal {
     max-width: 100%;
     width: 100%;
-    max-height: 85vh;
+    max-height: 86vh;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     border-top-left-radius: 20px;
     border-top-right-radius: 20px;
-    padding: 12px 14px 22px 14px;
-    animation: pcodSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 12px 16px 24px 16px;
+    animation: pcodSlideUpDrawer 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .pcod-mobile-pull-handle {
@@ -907,84 +1107,9 @@
     font-size: 16px;
   }
 
-  .pcod-choice-product {
-    padding: 6px 8px;
-    margin-bottom: 8px;
-  }
-
-  .pcod-choice-thumb {
-    width: 32px;
-    height: 32px;
-  }
-
-  .pcod-cards-container {
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-
-  .pcod-option-card {
-    padding: 10px 12px;
-  }
-
-  .pcod-select-btn {
-    padding: 9px 12px;
-    font-size: 13px;
-  }
-
-  .pcod-coupon-section {
-    padding: 10px;
-    margin-bottom: 10px;
-  }
-
-  .pcod-discount-card {
-    padding: 8px 10px;
-  }
-
-  .pcod-discount-badge-icon {
-    width: 30px;
-    height: 30px;
-  }
-
-  .pcod-discount-title {
-    font-size: 13px;
-  }
-}
-
-/* Auto Deal Slide-Down Announcement Banner */
-.pcod-auto-deal-banner {
-  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
-  border: 1px solid #10B981;
-  color: #065F46;
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
-  font-weight: 600;
-  animation: pcodSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
-}
-
-.pcod-auto-deal-banner strong {
-  font-weight: 700;
-  color: #047857;
-}
-
-.pcod-deal-icon {
-  font-size: 16px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-@keyframes pcodSlideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .pcod-otp-slot {
+    width: 38px;
+    height: 44px;
+    font-size: 17px;
   }
 }

@@ -32,23 +32,34 @@
     const modalHtml = `
     <div class="pcod-modal-backdrop" id="pcod-choice-modal-backdrop" style="display: none;">
       <div class="pcod-choice-modal" id="pcod-choice-modal">
-        <!-- Mobile pull indicator handle -->
+        <!-- Mobile pull indicator handle (shadcn Drawer) -->
         <div class="pcod-mobile-pull-handle"></div>
 
-        <!-- Sticky Header -->
+        <!-- Sticky Header (shadcn DialogHeader) -->
         <div class="pcod-choice-header">
           <div>
-            <div class="pcod-shield-badge">🔒 256-Bit SSL Secure Checkout</div>
+            <div class="pcod-shield-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="m9 12 2 2 4-4"></path>
+              </svg>
+              <span>256-Bit SSL Secure Checkout</span>
+            </div>
             <h3 class="pcod-choice-title">Choose How You'd Like to Pay</h3>
           </div>
-          <button type="button" class="pcod-choice-close" id="pcod-choice-close-btn" aria-label="Close">&times;</button>
+          <button type="button" class="pcod-choice-close" id="pcod-choice-close-btn" aria-label="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
 
-        <!-- Inner Scrollable Container (Effortless scrolling on mobile & small screens) -->
+        <!-- Inner Scrollable Container -->
         <div class="pcod-modal-scroll-area" id="pcod-modal-scroll-area">
           <!-- Slide-Down Best Deal Announcement Banner -->
           <div id="pcod-auto-deal-banner" class="pcod-auto-deal-banner" style="display: none;">
-            <span class="pcod-deal-icon">🎉</span>
+            <span class="pcod-deal-icon">✨</span>
             <span id="pcod-auto-deal-text" class="pcod-deal-text"><strong>Best Deal Auto-Applied:</strong> Extra savings unlocked!</span>
           </div>
 
@@ -66,7 +77,12 @@
             <!-- Option 1: Full Prepaid -->
             <div class="pcod-option-card pcod-card-prepaid" id="pcod-card-prepaid">
               <div class="pcod-card-top">
-                <span class="pcod-badge pcod-badge-green">⚡ Fastest Dispatch</span>
+                <span class="pcod-badge pcod-badge-green">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                  </svg>
+                  <span>Fastest Dispatch</span>
+                </span>
                 <span class="pcod-prepaid-tag" id="pcod-prepaid-tag">⚡ Extra 5% OFF on Prepaid</span>
                 <div class="pcod-price-stack">
                   <span class="pcod-card-price" id="pcod-prepaid-price">₹0</span>
@@ -86,7 +102,15 @@
             <!-- Option 2: Partial COD -->
             <div class="pcod-option-card pcod-card-cod" id="pcod-card-cod">
               <div class="pcod-card-top">
-                <span class="pcod-badge pcod-badge-orange">📦 Pay Rest on Delivery</span>
+                <span class="pcod-badge pcod-badge-orange">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m7.5 4.27 9 5.15"></path>
+                    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+                    <path d="m3.3 7 8.7 5 8.7-5"></path>
+                    <path d="M12 22V12"></path>
+                  </svg>
+                  <span>Pay Rest on Delivery</span>
+                </span>
                 <span class="pcod-save-badge" id="pcod-cod-tag" style="display: none;">Save ₹0</span>
                 <div class="pcod-price-stack">
                   <div class="pcod-card-price-split">
@@ -106,10 +130,13 @@
             </div>
           </div>
 
-          <!-- Coupon & Best Deals Section (Placed BELOW Payment Options) -->
+          <!-- Coupon & Best Deals Section -->
           <div class="pcod-coupon-section" id="pcod-coupon-section">
             <div class="pcod-coupon-section-title-row">
-              <span class="pcod-coupon-section-icon">🏷️</span>
+              <svg class="pcod-coupon-section-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"></path>
+                <path d="M7 7h.01"></path>
+              </svg>
               <span class="pcod-coupon-section-heading">Apply Coupons & Exclusive Offers</span>
             </div>
 
@@ -122,17 +149,22 @@
             <!-- Coupon Status Message Banner -->
             <div id="pcod-coupon-applied-msg" class="pcod-coupon-applied-msg" style="display: none;"></div>
 
-            <!-- Available Offer Cards List (Matching Reference Image) -->
+            <!-- Available Offer Cards List -->
             <div class="pcod-available-coupons-wrap" id="pcod-available-coupons-wrap">
               <div class="pcod-available-coupons-title" id="pcod-available-coupons-title">Available Coupons</div>
               <div class="pcod-coupon-cards-list" id="pcod-coupon-chips"></div>
             </div>
           </div>
 
-          <!-- SMS OTP Verification Step -->
+          <!-- SMS OTP Verification Step (shadcn InputOTP) -->
           <div class="pcod-otp-step" id="pcod-otp-step" style="display: none;">
             <div class="pcod-otp-header">
-              <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">← Change Payment Option</button>
+              <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m15 18-6-6 6-6"></path>
+                </svg>
+                <span>Change Payment Option</span>
+              </button>
             </div>
             <div class="pcod-otp-title">Verify Mobile via SMS</div>
             <div class="pcod-otp-desc">To confirm your Partial COD order, please enter your mobile number. A 6-digit SMS verification code will be sent.</div>
@@ -146,12 +178,18 @@
               <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Send SMS Code →</button>
             </div>
 
-            <!-- Code Input Step -->
+            <!-- Code Input Step (shadcn InputOTP 6-Box Grid) -->
             <div class="pcod-otp-code-group" id="pcod-otp-code-group" style="display: none;">
               <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your mobile SMS inbox!</div>
-              <div class="pcod-otp-input-wrap">
-                <input type="text" id="pcod-otp-code-input" class="pcod-otp-input pcod-code" placeholder="------" maxlength="6" />
+              <div class="pcod-otp-slots-row" id="pcod-otp-slots-row">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="0" autocomplete="one-time-code" />
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="1" />
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="2" />
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="3" />
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="4" />
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="5" />
               </div>
+              <input type="hidden" id="pcod-otp-code-input" value="" />
               <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify SMS & Place Order →</button>
               <div class="pcod-otp-resend">
                 <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend SMS</button>
@@ -163,7 +201,11 @@
 
           <!-- Security Footer -->
           <div class="pcod-choice-footer">
-            <span>🛡️ Buyer Protection Guaranteed • Official Shopify Checkout</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>Encrypted 256-Bit SSL • Official Shopify Checkout</span>
           </div>
         </div>
       </div>
@@ -229,6 +271,59 @@
     const otpSendBtn = $("pcod-otp-send-btn");
     const otpVerifyBtn = $("pcod-otp-verify-btn");
     const otpResendBtn = $("pcod-otp-resend-btn");
+    const slotContainer = $("pcod-otp-slots-row");
+
+    if (slotContainer && !slotContainer.getAttribute("data-pcod-bound")) {
+      slotContainer.setAttribute("data-pcod-bound", "true");
+      const slots = slotContainer.querySelectorAll(".pcod-otp-slot");
+      const hiddenInput = $("pcod-otp-code-input");
+
+      function syncOtpFromSlots() {
+        let code = "";
+        slots.forEach(function (s) {
+          code += (s.value || "");
+          if (s.value) s.classList.add("filled");
+          else s.classList.remove("filled");
+        });
+        if (hiddenInput) hiddenInput.value = code;
+      }
+
+      slots.forEach(function (slot, idx) {
+        slot.addEventListener("input", function () {
+          const val = this.value.replace(/[^0-9]/g, "");
+          this.value = val ? val[val.length - 1] : "";
+          syncOtpFromSlots();
+          if (this.value && idx < slots.length - 1) {
+            slots[idx + 1].focus();
+          }
+        });
+
+        slot.addEventListener("keydown", function (e) {
+          if (e.key === "Backspace" && !this.value && idx > 0) {
+            slots[idx - 1].focus();
+            slots[idx - 1].value = "";
+            syncOtpFromSlots();
+          } else if (e.key === "ArrowLeft" && idx > 0) {
+            slots[idx - 1].focus();
+          } else if (e.key === "ArrowRight" && idx < slots.length - 1) {
+            slots[idx + 1].focus();
+          }
+        });
+
+        slot.addEventListener("paste", function (e) {
+          e.preventDefault();
+          const pasted = (e.clipboardData || window.clipboardData).getData("text").replace(/[^0-9]/g, "");
+          if (pasted) {
+            slots.forEach(function (s, i) {
+              s.value = pasted[i] || "";
+            });
+            syncOtpFromSlots();
+            const focusIdx = Math.min(pasted.length, slots.length - 1);
+            slots[focusIdx].focus();
+          }
+        });
+      });
+    }
 
     if (otpBackBtn && !otpBackBtn.getAttribute("data-pcod-bound")) {
       otpBackBtn.setAttribute("data-pcod-bound", "true");
@@ -791,7 +886,7 @@
           <div class="pcod-discount-card ${isActive ? "applied" : ""} ${isLocked ? "locked" : ""}" data-coupon-code="${c.code}" data-min-sub="${minSub}">
             <div class="pcod-discount-card-left">
               <div class="pcod-discount-badge-icon">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="19" y1="5" x2="5" y2="19"></line>
                   <circle cx="6.5" cy="6.5" r="2.5"></circle>
                   <circle cx="17.5" cy="17.5" r="2.5"></circle>
@@ -1306,8 +1401,13 @@
       const codeInput = $("pcod-otp-code-input");
       if (codeInput) {
         codeInput.value = "";
-        codeInput.focus();
       }
+      const slots = document.querySelectorAll(".pcod-otp-slot");
+      slots.forEach(function (s) {
+        s.value = "";
+        s.classList.remove("filled");
+      });
+      if (slots.length > 0) slots[0].focus();
     } catch (err) {
       setOtpError(err.message || "Failed to deliver SMS OTP. Please check your number.");
     } finally {
