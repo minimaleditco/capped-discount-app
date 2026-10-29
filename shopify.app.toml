@@ -28,7 +28,7 @@ api_version = "2026-01"
   uri = "/webhooks"
 
 [build]
-# Keep the app URL pinned to the production deployment. When this was `true`,
-# every `shopify app dev` run rewrote the app's URL to a throwaway tunnel, and
-# killing dev left the live app pointing at a dead host.
+# Production app URL is managed explicitly (see application_url above). Keeping
+# this false prevents a dev run from rewriting the live App URL to a throwaway
+# tunnel, which previously left the app pointing at a dead host.
 automatically_update_urls_on_dev = false
