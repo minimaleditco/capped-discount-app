@@ -57,7 +57,14 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaPostgresSessionStorage(),
   distribution: AppDistribution.AppStore,
   future: {
-    unstable_newEmbeddedAuthStrategy: true,
+    // Token exchange (the "new" embedded auth strategy) is failing against
+    // this app with `invalid_subject_token`, which makes the admin bounce
+    // between /app and /auth/session-token forever — the merchant only sees a
+    // blank frame. Shopify's managed install is not enabled for this app, so
+    // fall back to the classic OAuth code flow, which is what worked before
+    // the library upgrade. Expiring offline tokens still work: the OAuth
+    // callback receives the same `expiring` flag.
+    unstable_newEmbeddedAuthStrategy: false,
     expiringOfflineAccessTokens: true,
   },
 });
