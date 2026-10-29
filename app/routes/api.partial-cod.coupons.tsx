@@ -170,6 +170,3 @@ async function handleRequest(request: Request) {
     );
   }
 }
-
-// Re-exported for tests that import the route module directly.
-export { computeCouponDiscount };
