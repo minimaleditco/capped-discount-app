@@ -50,6 +50,30 @@ export function findCoupon(coupons: CouponRule[], code: string): CouponRule | un
 }
 
 /**
+ * Amount saved by a *Shopify automatic* discount (percentage with an optional
+ * cap and minimum subtotal). Shopify already applies these to the storefront
+ * cart, but draft orders created by the app do not inherit them, so the app
+ * has to reproduce the same number when it prices an order.
+ */
+export function computeAutoDiscountAmount(
+  auto: { percentage: number; maxCap?: number; minSubtotal?: number } | null | undefined,
+  subtotal: number
+): number {
+  if (!auto) return 0;
+  const safeSubtotal = Math.max(0, Number(subtotal) || 0);
+  if (safeSubtotal <= 0) return 0;
+  if (auto.minSubtotal && safeSubtotal < auto.minSubtotal) return 0;
+
+  const percentage = Number(auto.percentage) || 0;
+  if (percentage <= 0) return 0;
+
+  let amount = Math.round(((safeSubtotal * percentage) / 100) * 100) / 100;
+  const cap = Number(auto.maxCap) || 0;
+  if (cap > 0) amount = Math.min(amount, cap);
+  return Math.max(0, Math.min(amount, safeSubtotal));
+}
+
+/**
  * Server-side coupon validation. A discount can never be applied unless it
  * exists as an ACTIVE discount in the merchant's Shopify admin.
  */

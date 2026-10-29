@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { getPartialCodSettings, normalizeShopDomain } from "../db.server";
 import {
+  computeAutoDiscountAmount,
   computeCouponDiscount,
   evaluateCoupon,
   fetchLiveDiscounts,
@@ -77,14 +78,7 @@ async function handleRequest(request: Request) {
       const autoWithAmount = autoDiscount
         ? {
             ...autoDiscount,
-            discountAmount:
-              subtotal >= autoDiscount.minSubtotal
-                ? Math.min(
-                    Math.round(((subtotal * autoDiscount.percentage) / 100) * 100) / 100,
-                    autoDiscount.maxCap > 0 ? autoDiscount.maxCap : Number.POSITIVE_INFINITY,
-                    subtotal
-                  )
-                : 0,
+            discountAmount: computeAutoDiscountAmount(autoDiscount, subtotal),
           }
         : null;
 
