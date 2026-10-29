@@ -5,6 +5,11 @@ import { RemixServer } from "@remix-run/react";
 import * as isbotModule from "isbot";
 import { renderToPipeableStream } from "react-dom/server";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import {
+  DIAGNOSTICS_BUILD,
+  describeRequest,
+  recordDiagnostic,
+} from "./services/diagnostics.server";
 
 const ABORT_DELAY = 5_000;
 
@@ -16,6 +21,14 @@ export default function handleRequest(
   loadContext: AppLoadContext
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
+
+  responseHeaders.set("X-App-Build", DIAGNOSTICS_BUILD);
+  recordDiagnostic({
+    ...describeRequest(request),
+    stage: "document",
+    status: responseStatusCode,
+    detail: `build=${DIAGNOSTICS_BUILD}; ua=${request.headers.get("user-agent")?.slice(0, 40) || "-"}`,
+  });
 
   const prohibitOutOfOrderStreaming =
     isBotRequest(request.headers.get("user-agent")) || remixContext.isSpaMode;

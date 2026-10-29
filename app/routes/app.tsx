@@ -5,9 +5,26 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import {
+  describeError,
+  describeRequest,
+  recordDiagnostic,
+} from "../services/diagnostics.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const requestInfo = describeRequest(request);
+  recordDiagnostic({ ...requestInfo, stage: "app:loader" });
+
+  const { admin, session } = await authenticate.admin(request).catch((error) => {
+    recordDiagnostic({
+      ...requestInfo,
+      stage: "app:error",
+      detail: `authenticate: ${describeError(error)}`,
+    });
+    throw error;
+  });
+
+  recordDiagnostic({ ...requestInfo, stage: "app:ok", detail: `session=${Boolean(session)}` });
 
   // Scope verification is advisory only.
   //

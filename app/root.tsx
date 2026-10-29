@@ -12,6 +12,10 @@ import {
   isRouteErrorResponse,
 } from "@remix-run/react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import {
+  describeRequest,
+  recordDiagnostic,
+} from "./services/diagnostics.server";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -23,8 +27,9 @@ export const links: LinksFunction = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  recordDiagnostic({ ...describeRequest(request), stage: "root" });
   return json({
-    apiKey: process.env.SHOPIFY_API_KEY || "2c334cb8162a93e88de39958c51ff783",
+    apiKey: process.env.SHOPIFY_API_KEY || "",
   });
 };
 

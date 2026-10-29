@@ -1,5 +1,9 @@
 import { json } from "@remix-run/node";
 import { createHash } from "node:crypto";
+import {
+  DIAGNOSTICS_BUILD,
+  readDiagnostics,
+} from "../services/diagnostics.server";
 
 /**
  * Public configuration probe.
@@ -21,6 +25,7 @@ export const loader = async () => {
   return json(
     {
       ok: Boolean(key && secret),
+      build: DIAGNOSTICS_BUILD,
       keyLength: key.length,
       keyFingerprint: fingerprint(key),
       secretLength: secret.length,
@@ -30,6 +35,7 @@ export const loader = async () => {
       appUrl: appUrl || "(unset: defaults to the production URL)",
       nodeEnv: process.env.NODE_ENV || "(unset)",
       scopesEnv: process.env.SCOPES || "(unset)",
+      recentRequests: readDiagnostics(),
     },
     { headers: { "Cache-Control": "no-store" } }
   );
