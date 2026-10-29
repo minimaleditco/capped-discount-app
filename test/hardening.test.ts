@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
+  computeAutoDiscountAmount,
   computeCouponDiscount,
   evaluateCoupon,
   findCoupon,
@@ -107,6 +108,40 @@ describe("Security hardening: coupon math", () => {
     const result = evaluateCoupon([fixedCoupon], "SAVE299", 1200);
     expect(result.valid).toBe(true);
     expect(result.discountAmount).toBe(299);
+  });
+});
+
+describe("Security hardening: automatic discounts", () => {
+  const auto = { percentage: 50, maxCap: 500, minSubtotal: 0 };
+
+  it("computes a capped automatic discount", () => {
+    expect(computeAutoDiscountAmount(auto, 1200)).toBe(500);
+    expect(computeAutoDiscountAmount(auto, 600)).toBe(300);
+  });
+
+  it("returns nothing without an automatic discount", () => {
+    expect(computeAutoDiscountAmount(null, 1200)).toBe(0);
+    expect(computeAutoDiscountAmount(undefined, 1200)).toBe(0);
+  });
+
+  it("respects the minimum subtotal", () => {
+    const gated = { percentage: 20, maxCap: 1000, minSubtotal: 1500 };
+    expect(computeAutoDiscountAmount(gated, 1200)).toBe(0);
+    expect(computeAutoDiscountAmount(gated, 2000)).toBe(400);
+  });
+
+  it("never exceeds the order subtotal", () => {
+    expect(computeAutoDiscountAmount({ percentage: 100, maxCap: 0 }, 250)).toBe(250);
+    expect(computeAutoDiscountAmount({ percentage: 0, maxCap: 0 }, 250)).toBe(0);
+  });
+
+  it("picks the better of an automatic discount and a code", () => {
+    const autoAmount = computeAutoDiscountAmount(auto, 1200); // 500
+    const codeAmount = computeCouponDiscount(
+      { code: "SAVE80", title: "40%", type: "percentage", value: 40, maxCap: 766 },
+      1200
+    ); // 480
+    expect(Math.max(autoAmount, codeAmount)).toBe(500);
   });
 });
 

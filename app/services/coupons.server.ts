@@ -4,7 +4,7 @@ import type { CouponRule } from "./coupon-math";
 import { percentFromFraction } from "./coupon-math";
 
 export type { CouponRule, CouponEvaluation } from "./coupon-math";
-export { computeCouponDiscount, findCoupon, evaluateCoupon, percentFromFraction } from "./coupon-math";
+export { computeCouponDiscount, findCoupon, evaluateCoupon, percentFromFraction, computeAutoDiscountAmount } from "./coupon-math";
 
 export interface AutoDiscount {
   id: string;

@@ -7,7 +7,7 @@ import {
   validateVerificationToken,
 } from "../db.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
-import { fetchLiveDiscounts, evaluateCoupon } from "../services/coupons.server";
+import { fetchLiveDiscounts, evaluateCoupon, computeAutoDiscountAmount } from "../services/coupons.server";
 import {
   allocateProportionally,
   resolveLineItems,
@@ -96,17 +96,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const settings = await getPartialCodSettings(shop);
 
     // ---------------------------------------------------------------------
-    // 3. Validate the coupon against live Shopify discounts. The old code
-    //    trusted `couponDiscount` from the browser, which let anyone grant
-    //    any discount they liked.
+    // 3. Resolve the discount that actually applies to this order.
+    //
+    //    Two independent sources exist:
+    //      - a code the shopper typed (validated against live Shopify discounts)
+    //      - a Shopify *automatic* discount, which Shopify already applies to
+    //        the storefront cart but which draft orders do NOT inherit.
+    //
+    //    The app charges the deposit itself, so it must reproduce the same
+    //    number. Code and automatic discounts are treated as mutually
+    //    exclusive: whichever saves the customer more wins. Stacking them here
+    //    would hand out a discount Shopify never agreed to.
     // ---------------------------------------------------------------------
     const requestedCode = String(body.couponCode || "").trim();
 
     let couponCode = "";
     let couponDiscount = 0;
+    let autoDiscount = 0;
+    let autoTitle = "";
+
+    const { coupons, autoDiscount: liveAuto, lookupFailed } = await fetchLiveDiscounts(shop);
 
     if (requestedCode) {
-      const { coupons, lookupFailed } = await fetchLiveDiscounts(shop);
       if (lookupFailed) {
         return json(
           { success: false, error: "Could not verify this coupon right now. Please try again." },
@@ -122,11 +133,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
 
-      couponCode = evaluation.coupon!.code;
       couponDiscount = evaluation.discountAmount;
+      if (couponDiscount > 0) couponCode = evaluation.coupon!.code;
     }
 
-    const effectiveTotalPrice = Math.max(0, Math.round((subtotal - couponDiscount) * 100) / 100);
+    if (liveAuto) {
+      autoDiscount = computeAutoDiscountAmount(liveAuto, subtotal);
+      if (autoDiscount > 0) autoTitle = liveAuto.title || "Store automatic discount";
+    }
+
+    const useCoupon = couponDiscount >= autoDiscount && couponDiscount > 0;
+    const appliedDiscount = useCoupon ? couponDiscount : autoDiscount;
+    if (!useCoupon) couponCode = "";
+
+    const effectiveTotalPrice = Math.max(0, Math.round((subtotal - appliedDiscount) * 100) / 100);
 
     // ---------------------------------------------------------------------
     // 4. Verify WhatsApp / SMS OTP for COD orders only.
@@ -238,13 +258,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
         ];
 
+    const discountNoteLine =
+      appliedDiscount > 0
+        ? `\n• Discount Applied: -₹${appliedDiscount.toFixed(2)} (${useCoupon ? `code ${couponCode}` : `automatic: ${autoTitle}`})`
+        : "";
+
+    if (appliedDiscount > 0) {
+      tags.push(
+        useCoupon ? `Coupon: ${couponCode}` : "Automatic Discount",
+        `Discount: ₹${appliedDiscount}`
+      );
+    } else {
+      tags.push("No Discount");
+    }
+
     const note = isPrepaid
       ? `[FULL PREPAID ORDER] • Amount Paid: ₹${onlineAmount.toFixed(2)}${
           couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""
-        }`
+        }${discountNoteLine}`
       : `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${onlineAmount.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${ruleSummary}${
           couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""
-        }${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`;
+        }${discountNoteLine}${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`;
 
     const customAttributes = isPrepaid
       ? [

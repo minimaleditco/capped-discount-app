@@ -645,8 +645,13 @@
   function autoApplyBestCoupon(subtotal) {
     if (!storeOffers.coupons || storeOffers.coupons.length === 0) return;
 
+    // A storewide automatic discount may already beat every code. In that
+    // case there is nothing to auto-apply: the server will pick the automatic
+    // discount too.
+    const autoSavings = storeOffers.autoDiscount ? Number(storeOffers.autoDiscount.discountAmount) || 0 : 0;
+
     let bestCoupon = null;
-    let maxSavings = 0;
+    let maxSavings = autoSavings;
 
     for (const c of storeOffers.coupons) {
       const minSub = c.minSubtotal ? Number(c.minSubtotal) : 0;
@@ -718,13 +723,13 @@
         if (data.prepaidOffer) {
           storeOffers.prepaidOffer = data.prepaidOffer;
         }
-        // Automatic discounts are applied natively by Shopify at checkout.
-        // They must NOT be re-applied here as a fake coupon code, because the
-        // server now validates every code against the live discount list.
-        storeOffers.autoDiscount = null;
+        // Automatic discounts are applied by Shopify itself. We surface them
+        // for display and include them in our own calculation, but never send
+        // them back as a coupon code (the server would reject "AUTO").
+        storeOffers.autoDiscount = data.autoDiscount || null;
 
         // Auto-apply the highest discount deal if user hasn't manually selected another
-        if (!activeCoupon || activeCoupon.isAuto) {
+        if (!activeCoupon) {
           autoApplyBestCoupon(subtotal);
         }
 
@@ -797,11 +802,7 @@
             </div>
           </div>
           <div class="pcod-discount-card-right">
-            ${
-              isAutoActive
-                ? `<div class="pcod-discount-applied-pill">✓ Applied</div>`
-                : `<button type="button" class="pcod-discount-apply-action pcod-reapply-auto-btn">RE-APPLY AUTO</button>`
-            }
+            <div class="pcod-discount-applied-pill">✓ Applied</div>
           </div>
         </div>
       `;
@@ -1095,8 +1096,13 @@
   }
 
   function recalculateModalPrices() {
-    const couponDiscount = activeCoupon ? activeCoupon.discountAmount : 0;
-    const effectiveSubtotal = Math.max(0, baseOrderTotal - couponDiscount);
+    const couponDiscount = activeCoupon && !activeCoupon.isAuto ? Number(activeCoupon.discountAmount) || 0 : 0;
+    // Shopify applies automatic discounts to the cart, but the draft order the
+    // app creates does not inherit them, so the popup must mirror the server:
+    // the better of (automatic discount, typed code) wins.
+    const autoDiscount = storeOffers.autoDiscount ? Number(storeOffers.autoDiscount.discountAmount) || 0 : 0;
+    const appliedDiscount = Math.max(couponDiscount, autoDiscount);
+    const effectiveSubtotal = Math.max(0, baseOrderTotal - appliedDiscount);
 
     // Extra Prepaid Discount calculation
     let extraPrepaid = 0;
@@ -1117,8 +1123,12 @@
     const dealBanner = $("pcod-auto-deal-banner");
     const dealText = $("pcod-auto-deal-text");
     if (dealBanner && dealText) {
-      if (couponDiscount > 0 && activeCoupon) {
-        dealText.innerHTML = `<strong>Best Deal '${activeCoupon.code}' Auto-Applied:</strong> You save <strong>₹${couponDiscount.toLocaleString("en-IN")}</strong> on this order!`;
+      if (appliedDiscount > 0) {
+        const source =
+          couponDiscount >= autoDiscount && couponDiscount > 0
+            ? `Best Deal '${activeCoupon.code}' Auto-Applied`
+            : `Automatic Discount${storeOffers.autoDiscount && storeOffers.autoDiscount.title ? ` '${storeOffers.autoDiscount.title}'` : ""} Applied by Shopify`;
+        dealText.innerHTML = `<strong>${source}:</strong> You save <strong>₹${appliedDiscount.toLocaleString("en-IN")}</strong> on this order!`;
         dealBanner.style.display = "flex";
       } else {
         dealBanner.style.display = "none";
@@ -1181,13 +1191,13 @@
     if (descDeposit) descDeposit.textContent = `₹${deposit.toLocaleString("en-IN")}`;
     if (descBalance) descBalance.textContent = `₹${balance.toLocaleString("en-IN")}`;
 
-    if (couponDiscount > 0) {
+    if (appliedDiscount > 0) {
       if (codOrigPrice) {
         codOrigPrice.textContent = `Total ₹${baseOrderTotal.toLocaleString("en-IN")}`;
         codOrigPrice.style.display = "inline";
       }
       if (codTag) {
-        codTag.textContent = `Save ₹${couponDiscount.toLocaleString("en-IN")}`;
+        codTag.textContent = `Save ₹${appliedDiscount.toLocaleString("en-IN")}`;
         codTag.style.display = "inline";
       }
       if (descSaving) {
@@ -1487,7 +1497,7 @@
 
     try {
       const shop = getShopDomain();
-      const couponDiscount = activeCoupon ? activeCoupon.discountAmount : 0;
+      const couponDiscount = activeCoupon && !activeCoupon.isAuto ? Number(activeCoupon.discountAmount) || 0 : 0;
       const effectiveSubtotal = Math.max(0, baseOrderTotal - couponDiscount);
       const calculatedDeposit = isPrepaid ? 0 : calculateDeposit(effectiveSubtotal);
       let payload;
@@ -1510,8 +1520,8 @@
           })),
           phone: phone || undefined,
           otpToken: otpToken || undefined,
-          couponCode: activeCoupon ? activeCoupon.code : undefined,
-          couponDiscount: activeCoupon ? activeCoupon.discountAmount : 0,
+          couponCode: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : undefined,
+          couponDiscount: activeCoupon && !activeCoupon.isAuto ? activeCoupon.discountAmount : 0,
         };
       } else {
         const { variantId, quantity, price, title } = activeProduct;
@@ -1527,8 +1537,8 @@
           title,
           phone: phone || undefined,
           otpToken: otpToken || undefined,
-          couponCode: activeCoupon ? activeCoupon.code : undefined,
-          couponDiscount: activeCoupon ? activeCoupon.discountAmount : 0,
+          couponCode: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : undefined,
+          couponDiscount: activeCoupon && !activeCoupon.isAuto ? activeCoupon.discountAmount : 0,
         };
       }
 
