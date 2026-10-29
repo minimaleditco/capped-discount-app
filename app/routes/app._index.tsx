@@ -248,6 +248,12 @@ export default function DiscountsDashboard() {
         content: "Create discount",
         url: "/app/discounts/new",
       }}
+      secondaryActions={[
+        {
+          content: "🌟 Feature Overview",
+          url: "/app/home",
+        },
+      ]}
     >
       <BlockStack gap="500">
         {error && (
