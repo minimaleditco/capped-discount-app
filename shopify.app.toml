@@ -28,7 +28,4 @@ api_version = "2026-01"
   uri = "/webhooks"
 
 [build]
-# Production app URL is managed explicitly (see application_url above). Keeping
-# this false prevents a dev run from rewriting the live App URL to a throwaway
-# tunnel, which previously left the app pointing at a dead host.
 automatically_update_urls_on_dev = false
