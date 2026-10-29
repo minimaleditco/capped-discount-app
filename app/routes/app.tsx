@@ -54,9 +54,10 @@ export default function AppLayout() {
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app" rel="home">
-          Discounts
+        <Link to="/app/home" rel="home">
+          Home & Overview
         </Link>
+        <Link to="/app">Discounts</Link>
         <Link to="/app/cod">Partial COD Settings</Link>
         <Link to="/app/deposit-rules">Deposit Rules</Link>
         <Link to="/app/orders">Orders & Support</Link>
