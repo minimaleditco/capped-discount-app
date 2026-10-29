@@ -27,6 +27,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  // ---------------------------------------------------------------------
+  // DISABLED BY DEFAULT (security hold).
+  //
+  // Unauthenticated and unused by the storefront, but capable of creating
+  // real PARTIALLY_PAID orders from client-supplied amounts. Re-enable only
+  // after amounts are derived server-side and payment proof is bound to a
+  // server-created gateway order.
+  // ---------------------------------------------------------------------
+  if (process.env.ALLOW_LEGACY_FAST_CHECKOUT !== "true") {
+    return json(
+      {
+        success: false,
+        error:
+          "The legacy fast-checkout endpoint is disabled. Use /api/partial-cod/draft-checkout instead.",
+      },
+      { status: 410, headers: corsHeaders }
+    );
+  }
+
   try {
     const body = await request.json();
     const { shop, paymentDetails, orderDetails } = body;

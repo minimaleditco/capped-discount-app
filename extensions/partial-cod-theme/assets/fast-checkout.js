@@ -21,7 +21,7 @@
       (window.Shopify && window.Shopify.shop) ||
       document.querySelector('meta[name="shopify-digital-wallet-domain"]')?.getAttribute("content") ||
       document.getElementById("pcod-fast-buy-btn")?.getAttribute("data-shop") ||
-      "minimal-discount-test-3.myshopify.com"
+      ""
     );
   }
 
@@ -627,32 +627,13 @@
 
   let baseOrderTotal = 0;
   let activeCoupon = null;
+  // Coupons come exclusively from the merchant's live Shopify discounts.
+  // Hardcoded fallbacks (DIWALI50/SAVE80/SAVE299) used to be auto-applied here
+  // and then honoured by the server, granting discounts that did not exist.
   let storeOffers = {
     depositSettings: { type: "percentage", value: 10 },
     autoDiscount: null,
-    coupons: [
-      {
-        code: "DIWALI50",
-        title: "50% off up to ₹600",
-        type: "percentage",
-        value: 50,
-        maxCap: 600,
-      },
-      {
-        code: "SAVE80",
-        title: "40% off up to ₹200",
-        type: "percentage",
-        value: 40,
-        maxCap: 766,
-      },
-      {
-        code: "SAVE299",
-        title: "Flat ₹299 OFF",
-        type: "fixed",
-        value: 299,
-        minSubtotal: 1000,
-      },
-    ],
+    coupons: [],
     prepaidOffer: {
       enabled: true,
       type: "percentage",
@@ -719,29 +700,28 @@
   async function loadStoreOffers(subtotal) {
     try {
       const shop = getShopDomain();
+      if (!shop) {
+        console.warn("[Store Offers] Shopify shop domain unavailable; skipping offer lookup.");
+        renderCouponChips();
+        recalculateModalPrices();
+        return;
+      }
       const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons?shop=${encodeURIComponent(shop)}&subtotal=${subtotal}`);
       if (res.ok) {
         const data = await res.json();
         if (data.depositSettings) {
           storeOffers.depositSettings = data.depositSettings;
         }
-        if (data.coupons && Array.isArray(data.coupons) && data.coupons.length > 0) {
-          storeOffers.coupons = data.coupons;
-        }
+        // Always trust the server list, including an empty one. Previously an
+        // empty response left the hardcoded fallback coupons in place.
+        storeOffers.coupons = Array.isArray(data.coupons) ? data.coupons : [];
         if (data.prepaidOffer) {
           storeOffers.prepaidOffer = data.prepaidOffer;
         }
-        if (data.autoDiscount && data.autoDiscount.discountAmount > 0) {
-          storeOffers.autoDiscount = {
-            code: "AUTO",
-            title: data.autoDiscount.title,
-            discountAmount: data.autoDiscount.discountAmount,
-            discountSummary: `${data.autoDiscount.title} (Store Auto Offer)`,
-            isAuto: true,
-          };
-        } else {
-          storeOffers.autoDiscount = null;
-        }
+        // Automatic discounts are applied natively by Shopify at checkout.
+        // They must NOT be re-applied here as a fake coupon code, because the
+        // server now validates every code against the live discount list.
+        storeOffers.autoDiscount = null;
 
         // Auto-apply the highest discount deal if user hasn't manually selected another
         if (!activeCoupon || activeCoupon.isAuto) {

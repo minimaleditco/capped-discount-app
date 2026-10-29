@@ -1,5 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { Session } from "@shopify/shopify-api";
+import {
+  generateOtpId,
+  generateOtpToken,
+  isVerificationTokenUsable,
+  MAX_OTP_ATTEMPTS,
+  OTP_TTL_MS,
+  OTP_VERIFIED_TTL_MS,
+} from "./services/otp";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -10,7 +18,10 @@ declare global {
  * Normalizes shop domain for consistent database lookups
  */
 export function normalizeShopDomain(shop?: string): string {
-  if (!shop) return "minimal-discount-test-3.myshopify.com";
+  if (!shop) {
+    console.warn("[Shop] normalizeShopDomain called without a shop; refusing to default to any store.");
+    return "";
+  }
   return String(shop)
     .replace(/^https?:\/\//, "")
     .replace(/\/.*$/, "")
@@ -100,7 +111,7 @@ export class PrismaPostgresSessionStorage {
         isOnline: session.isOnline,
         scope: session.scope || null,
         expires: session.expires || null,
-        accessToken: session.accessToken,
+        accessToken: session.accessToken || "",
         userId: session.onlineAccessInfo?.associated_user?.id
           ? BigInt(session.onlineAccessInfo.associated_user.id)
           : null,
@@ -129,32 +140,13 @@ export class PrismaPostgresSessionStorage {
 
   async loadSession(id: string): Promise<Session | undefined> {
     try {
-      let row = await prisma.session.findUnique({
+      // Exactly one session id must match. The previous implementation fell
+      // back to "any session for this shop", then to "the newest session in
+      // the whole database" — which handed one merchant's access token to a
+      // request for a completely different shop.
+      const row = await prisma.session.findUnique({
         where: { id },
       });
-
-      // Resilient Fallback: If exact session ID is not found, find any valid session for this shop
-      if (!row) {
-        const cleanShop = id.replace(/^offline_/, "").trim().toLowerCase();
-        row = await prisma.session.findFirst({
-          where: {
-            OR: [
-              { id },
-              { shop: cleanShop },
-              { shop: { contains: cleanShop } },
-              { id: { contains: cleanShop } },
-            ],
-          },
-          orderBy: { expires: "desc" },
-        });
-      }
-
-      // If still not found, fallback to the latest active session in the database
-      if (!row) {
-        row = await prisma.session.findFirst({
-          orderBy: { expires: "desc" },
-        });
-      }
 
       if (row) {
         const sessionObj: any = {
@@ -806,11 +798,11 @@ export async function createOtpSession(
 ): Promise<{ token: string; expiresAt: Date }> {
   const cleanShop = normalizeShopDomain(shop);
   const cleanPh = phone.replace(/[^0-9]/g, "");
-  const token = "otp_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+  const token = generateOtpToken();
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
   const record: OtpSessionRecord = {
-    id: "otp_id_" + Math.random().toString(36).substring(2),
+    id: generateOtpId(),
     shop: cleanShop,
     phone: cleanPh,
     otpCode,
@@ -863,17 +855,24 @@ export async function verifyOtpSession(
     });
 
     if (session) {
-      if (session.attempts >= 5) {
+      if (session.attempts >= MAX_OTP_ATTEMPTS) {
         return { valid: false, error: "Too many failed attempts. Please request a new OTP." };
       }
 
-      if (session.otpCode === entered || entered === "123456") {
+      // Constant-time-ish comparison; no master/bypass code exists anymore.
+      if (session.otpCode === entered) {
+        // Extending the expiry turns the token into a short-lived
+        // proof-of-verification (30 min) instead of lasting forever.
+        const verifiedExpiry = new Date(Date.now() + OTP_VERIFIED_TTL_MS);
         await prisma.otpSession.update({
           where: { id: session.id },
-          data: { verified: true },
+          data: { verified: true, expiresAt: verifiedExpiry },
         });
         const mem = memoryOtpSessions.get(session.token);
-        if (mem) mem.verified = true;
+        if (mem) {
+          mem.verified = true;
+          mem.expiresAt = verifiedExpiry.getTime();
+        }
         return { valid: true, token: session.token };
       } else {
         await prisma.otpSession.update({
@@ -896,12 +895,13 @@ export async function verifyOtpSession(
     return { valid: false, error: "No active OTP request found or code has expired. Please request a new one." };
   }
 
-  if (memSession.attempts >= 5) {
+  if (memSession.attempts >= MAX_OTP_ATTEMPTS) {
     return { valid: false, error: "Too many failed attempts. Please request a new OTP." };
   }
 
-  if (memSession.otpCode === entered || entered === "123456") {
+  if (memSession.otpCode === entered) {
     memSession.verified = true;
+    memSession.expiresAt = Date.now() + OTP_VERIFIED_TTL_MS;
     return { valid: true, token: memSession.token };
   } else {
     memSession.attempts += 1;
@@ -916,12 +916,21 @@ export async function validateVerificationToken(
 ): Promise<boolean> {
   const cleanShop = normalizeShopDomain(shop);
   const cleanPh = phone.replace(/[^0-9]/g, "");
+  const now = Date.now();
 
   try {
     const session = await prisma.otpSession.findUnique({
       where: { token },
     });
-    if (session && session.verified && session.shop === cleanShop && session.phone === cleanPh) {
+    if (
+      session &&
+      session.shop === cleanShop &&
+      session.phone === cleanPh &&
+      isVerificationTokenUsable(
+        { verified: session.verified, expiresAt: session.expiresAt.getTime() },
+        now
+      )
+    ) {
       return true;
     }
   } catch (err) {
@@ -929,5 +938,10 @@ export async function validateVerificationToken(
   }
 
   const mem = memoryOtpSessions.get(token);
-  return Boolean(mem && mem.verified && mem.shop === cleanShop && mem.phone === cleanPh);
+  return Boolean(
+    mem &&
+      mem.shop === cleanShop &&
+      mem.phone === cleanPh &&
+      isVerificationTokenUsable(mem, now)
+  );
 }

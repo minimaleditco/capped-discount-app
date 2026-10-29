@@ -66,12 +66,11 @@ describe("Phase 4: WhatsApp OTP & Balance Dunning", () => {
       expect(isValidAfter).toBe(true);
     });
 
-    it("should accept simulator master code 123456", async () => {
-      const { token } = await createOtpSession(testShop, testPhone, "999888");
+    it("should reject the old simulator master code 123456", async () => {
+      await createOtpSession(testShop, testPhone, "999888");
 
       const verifyRes = await verifyOtpSession(testShop, testPhone, "123456");
-      expect(verifyRes.valid).toBe(true);
-      expect(verifyRes.token).toBe(token);
+      expect(verifyRes.valid).toBe(false);
     });
 
     it("should reject incorrect code and block after repeated attempts", async () => {
@@ -91,7 +90,7 @@ describe("Phase 4: WhatsApp OTP & Balance Dunning", () => {
       // 6th attempt should be blocked
       const blocked = await verifyOtpSession(testShop, testPhone, "777888");
       expect(blocked.valid).toBe(false);
-      expect(blocked.error).toContain("Too many failed attempts");
+      expect(blocked.error).toMatch(/Too many failed attempts|request a new/i);
     });
   });
 

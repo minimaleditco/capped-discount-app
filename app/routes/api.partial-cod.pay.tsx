@@ -4,6 +4,7 @@ import { unauthenticated } from "../shopify.server";
 import {
   getPartialCodSettings,
   getDepositByOrderId,
+  normalizeShopDomain,
   saveDeposit,
   type PartialCodDepositRecord,
 } from "../db.server";
@@ -31,6 +32,8 @@ async function handlePayRequest(request: Request) {
       // not JSON
     }
   }
+
+  shop = normalizeShopDomain(shop);
 
   if (!shop) {
     return json({ success: false, error: "Missing required parameter: shop" }, { status: 400 });

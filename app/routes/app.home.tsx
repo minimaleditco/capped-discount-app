@@ -223,7 +223,7 @@ export default function AppHomePage() {
                     size="large"
                     onClick={() => navigate("/app/orders")}
                   >
-                    Orders & Refunds ({stats.ordersCount})
+                    Orders &amp; Refunds ({`${stats.ordersCount}`})
                   </Button>
                 </InlineStack>
               </Box>
@@ -287,7 +287,7 @@ export default function AppHomePage() {
                   {completedSteps} of 5 Completed
                 </Text>
                 <Badge tone={progressPercent === 100 ? "success" : "attention"}>
-                  {progressPercent}% SETUP
+                  {`${progressPercent}% SETUP`}
                 </Badge>
               </InlineStack>
             </InlineStack>

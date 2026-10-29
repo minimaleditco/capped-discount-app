@@ -25,6 +25,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 async function handleInit(request: Request) {
+  // ---------------------------------------------------------------------
+  // DISABLED BY DEFAULT (security hold).
+  //
+  // This endpoint has no authentication and no caller in the storefront or
+  // admin (verified across app/ and extensions/). It previously accepted
+  // prices, discounts and deposit amounts straight from the request body and
+  // created live gateway orders, so it is kept only behind an explicit
+  // opt-in until it can be re-implemented with server-side pricing.
+  // ---------------------------------------------------------------------
+  if (process.env.ALLOW_LEGACY_FAST_CHECKOUT !== "true") {
+    return json(
+      {
+        success: false,
+        error:
+          "The legacy fast-checkout endpoint is disabled. Use /api/partial-cod/draft-checkout instead.",
+      },
+      { status: 410, headers: corsHeaders }
+    );
+  }
+
   try {
     let body: any = {};
     if (request.method === "POST") {

@@ -6,10 +6,11 @@ import { unauthenticated } from "../shopify.server";
 import {
   getPartialCodSettings,
   getDepositByOrderId,
+  normalizeShopDomain,
   saveDeposit,
   type PartialCodDepositRecord,
 } from "../db.server";
-import { getGatewayAdapter } from "../services/gateways";
+import { getGatewayAdapter, simulatorAllowed } from "../services/gateways";
 
 interface LoaderData {
   shop: string;
@@ -20,6 +21,7 @@ interface LoaderData {
   remainingBalance: number;
   currency: string;
   gateway: string;
+  simulatorAllowed?: boolean;
   isPaid: boolean;
   checkoutPayload?: any;
   gatewayOrderId?: string;
@@ -29,7 +31,7 @@ interface LoaderData {
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop") || "";
+  const shop = normalizeShopDomain(url.searchParams.get("shop") || "");
   const rawOrderId = params.orderId || "";
 
   if (!shop || !rawOrderId) {
@@ -155,6 +157,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       remainingBalance,
       currency,
       gateway: settings.gateway,
+      simulatorAllowed: simulatorAllowed(),
       isPaid: false,
       depositId: depositRecord.id,
       gatewayOrderId: gatewayResult.gatewayOrderId,
@@ -346,7 +349,7 @@ export default function CustomerPayPage() {
           </div>
         ) : (
           <div>
-            {data.gateway === "simulator" ? (
+            {data.gateway === "simulator" && data.simulatorAllowed ? (
               <button
                 type="button"
                 onClick={handleSimulatedPayment}
