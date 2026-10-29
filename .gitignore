@@ -9,3 +9,5 @@ database.sqlite*
 .DS_Store
 extensions/**/dist
 extensions/**/.build-lock
+prisma/*.db
+prisma/*.db-journal

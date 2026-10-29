@@ -7,6 +7,8 @@ import {
 } from "../db.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
+import { evaluateSendRateLimit, generateOtpCode } from "../services/otp";
+import { simulatorAllowed } from "../services/gateways";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +16,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
   "Access-Control-Max-Age": "86400",
 };
+
+/**
+ * In-memory send log, keyed by shop+phone, used to stop SMS-pumping abuse
+ * (an attacker spamming /otp/send to burn the merchant's SMS credit).
+ * Per-instance only, which is enough to stop the trivial attack; a shared
+ * store can replace this later.
+ */
+const otpSendLog = new Map<string, number[]>();
+
+function pruneSendLog(now: number) {
+  for (const [key, stamps] of otpSendLog) {
+    const fresh = stamps.filter((t) => now - t < 60 * 60 * 1000);
+    if (fresh.length === 0) otpSendLog.delete(key);
+    else otpSendLog.set(key, fresh);
+  }
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -95,15 +113,62 @@ async function handleOtpRequest(request: Request) {
     // 1. ACTION: SEND OTP
     if (actionType === "send") {
       const channel = String(body.channel || "sms").toLowerCase();
-      const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const now = Date.now();
+      pruneSendLog(now);
+
+      const rateKey = `${shop}:${phone}`;
+      const rate = evaluateSendRateLimit(otpSendLog.get(rateKey) || [], now);
+      if (!rate.allowed) {
+        return json(
+          {
+            success: false,
+            error: `Please wait ${rate.retryAfterSeconds} seconds before requesting another code.`,
+          },
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Retry-After": String(rate.retryAfterSeconds) },
+          }
+        );
+      }
+
+      const willUseSimulator =
+        channel === "whatsapp"
+          ? settings.whatsappProvider === "simulator" || !settings.whatsappApiKey
+          : settings.smsProvider === "simulator" || !settings.smsApiKey;
+
+      // In production the simulator cannot deliver anything. Returning the
+      // code in the response (as the old simulator path did) let anyone who
+      // could call this endpoint verify any phone number and place a COD
+      // order without owning it. Fail closed instead.
+      if (willUseSimulator && !simulatorAllowed()) {
+        return json(
+          {
+            success: false,
+            error:
+              "Mobile verification is not configured for this store. Add an SMS/WhatsApp provider key in Partial COD settings, or disable OTP verification.",
+          },
+          { status: 503, headers: corsHeaders }
+        );
+      }
+
+      const randomCode = generateOtpCode();
       await createOtpSession(shop, phone, randomCode);
+
+      const log = otpSendLog.get(rateKey) || [];
+      log.push(now);
+      otpSendLog.set(rateKey, log);
 
       if (channel === "whatsapp") {
         const sendResult = await sendWhatsAppOtp(shop, phone, randomCode);
-        const isSim =
-          sendResult.provider === "simulator" ||
-          settings.whatsappProvider === "simulator" ||
-          !settings.whatsappApiKey;
+        if (!sendResult.success) {
+          return json(
+            {
+              success: false,
+              error: sendResult.error || "Could not send the WhatsApp code. Please try again.",
+            },
+            { status: 502, headers: corsHeaders }
+          );
+        }
 
         return json(
           {
@@ -111,11 +176,11 @@ async function handleOtpRequest(request: Request) {
             required: true,
             channel: "whatsapp",
             phone,
-            message: isSim
-              ? `Simulator Mode: Use WhatsApp code ${randomCode} or 123456`
+            message: willUseSimulator
+              ? `Test simulator: use WhatsApp code ${randomCode}`
               : "OTP sent to your WhatsApp number.",
             provider: sendResult.provider,
-            ...(isSim ? { debugOtp: randomCode } : {}),
+            ...(willUseSimulator ? { debugOtp: randomCode } : {}),
           },
           { headers: corsHeaders }
         );
@@ -123,7 +188,15 @@ async function handleOtpRequest(request: Request) {
 
       // Default: Carrier SMS OTP (Fast2SMS / Twilio / Simulator)
       const smsResult = await sendSmsOtp(shop, phone, randomCode);
-      const isSim = smsResult.provider === "simulator" || !settings.smsApiKey;
+      if (!smsResult.success) {
+        return json(
+          {
+            success: false,
+            error: smsResult.error || "Could not send the SMS code. Please try again.",
+          },
+          { status: 502, headers: corsHeaders }
+        );
+      }
 
       return json(
         {
@@ -131,11 +204,11 @@ async function handleOtpRequest(request: Request) {
           required: true,
           channel: "sms",
           phone,
-          message: isSim
-            ? `Simulator Mode: Use SMS code ${randomCode} or 123456`
+          message: willUseSimulator
+            ? `Test simulator: use SMS code ${randomCode}`
             : "SMS verification code sent to your mobile number.",
           provider: smsResult.provider,
-          ...(isSim ? { debugOtp: randomCode } : {}),
+          ...(willUseSimulator ? { debugOtp: randomCode } : {}),
         },
         { headers: corsHeaders }
       );

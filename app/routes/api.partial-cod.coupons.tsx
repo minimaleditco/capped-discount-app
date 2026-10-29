@@ -1,7 +1,11 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { getPartialCodSettings, normalizeShopDomain } from "../db.server";
-import { unauthenticated } from "../shopify.server";
+import {
+  computeCouponDiscount,
+  evaluateCoupon,
+  fetchLiveDiscounts,
+} from "../services/coupons.server";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,15 +28,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return handleRequest(request);
 };
 
-interface CouponRule {
-  code: string;
-  title: string;
-  type: "percentage" | "fixed";
-  value: number;
-  maxCap?: number;
-  minSubtotal?: number;
-}
-
 async function handleRequest(request: Request) {
   try {
     let shop = "";
@@ -54,6 +49,13 @@ async function handleRequest(request: Request) {
     }
 
     const cleanShop = normalizeShopDomain(shop);
+    if (!cleanShop) {
+      return json(
+        { success: false, valid: false, error: "Missing required parameter: shop" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     const settings = await getPartialCodSettings(cleanShop);
 
     const prepaidOffer = {
@@ -68,268 +70,29 @@ async function handleRequest(request: Request) {
       value: Number(settings.depositValue ?? 10),
     };
 
-    // Query LIVE discounts directly from Shopify Admin API
-    const liveCoupons: CouponRule[] = [];
-    let autoDiscount: any = null;
-    let resData: any = null;
-    let nodes: any[] = [];
-    let fetchError: any = null;
-
-    try {
-      const auth = await unauthenticated.admin(cleanShop);
-      const discountQuery = `#graphql
-        query GetLiveStoreDiscounts {
-          discountNodes(first: 50) {
-            nodes {
-              id
-              discount {
-                __typename
-                ... on DiscountCodeApp {
-                  title
-                  status
-                  codes(first: 5) {
-                    nodes {
-                      code
-                    }
-                  }
-                }
-                ... on DiscountCodeBasic {
-                  title
-                  status
-                  codes(first: 5) {
-                    nodes {
-                      code
-                    }
-                  }
-                  customerGets {
-                    value {
-                      ... on DiscountPercentage {
-                        percentage
-                      }
-                      ... on DiscountAmount {
-                        amount {
-                          amount
-                        }
-                      }
-                    }
-                  }
-                  minimumRequirement {
-                    ... on DiscountMinimumSubtotal {
-                      greaterThanOrEqualToSubtotal {
-                        amount
-                      }
-                    }
-                  }
-                }
-                ... on DiscountCodeBxgy {
-                  title
-                  status
-                  codes(first: 5) {
-                    nodes {
-                      code
-                    }
-                  }
-                }
-                ... on DiscountCodeFreeShipping {
-                  title
-                  status
-                  codes(first: 5) {
-                    nodes {
-                      code
-                    }
-                  }
-                }
-                ... on DiscountAutomaticApp {
-                  title
-                  status
-                }
-                ... on DiscountAutomaticBasic {
-                  title
-                  status
-                  customerGets {
-                    value {
-                      ... on DiscountPercentage {
-                        percentage
-                      }
-                      ... on DiscountAmount {
-                        amount {
-                          amount
-                        }
-                      }
-                    }
-                  }
-                  minimumRequirement {
-                    ... on DiscountMinimumSubtotal {
-                      greaterThanOrEqualToSubtotal {
-                        amount
-                      }
-                    }
-                  }
-                }
-              }
-              metafield(namespace: "capped_discount", key: "configuration") {
-                value
-              }
-            }
-          }
-        }
-      `;
-
-      const res = await auth.admin.graphql(discountQuery);
-      resData = await res.json();
-      nodes = resData?.data?.discountNodes?.nodes || [];
-
-      for (const node of nodes) {
-        const d = node.discount;
-        if (!d) continue;
-
-        // CRUCIAL: Only consider discounts that are strictly ACTIVE!
-        const status = String(d.status || "").toUpperCase();
-        if (status !== "ACTIVE") {
-          continue;
-        }
-
-        // 1. Process Automatic Discounts
-        if (d.__typename === "DiscountAutomaticApp" || d.__typename === "DiscountAutomaticBasic") {
-          let percentage = 0;
-          let maxCap = 0;
-          let minSubtotal = 0;
-
-          if (node.metafield?.value) {
-            try {
-              const config = JSON.parse(node.metafield.value);
-              percentage = Number(config.percentage) || 0;
-              maxCap = Number(config.maxCapAmount) || 0;
-              minSubtotal = Number(config.minSubtotal) || 0;
-            } catch {}
-          } else if (d.__typename === "DiscountAutomaticBasic") {
-            percentage = Number(d.customerGets?.value?.percentage) || 0;
-            minSubtotal = Number(d.minimumRequirement?.greaterThanOrEqualToSubtotal?.amount) || 0;
-          }
-
-          let calculatedAmount = 0;
-          if (subtotal >= minSubtotal && percentage > 0) {
-            calculatedAmount = (subtotal * percentage) / 100;
-            if (maxCap > 0 && calculatedAmount > maxCap) {
-              calculatedAmount = maxCap;
-            }
-          }
-          calculatedAmount = Math.min(calculatedAmount, subtotal);
-
-          // ONLY lock in an automatic discount if it actually provides savings (> 0)!
-          if (calculatedAmount > 0 && !autoDiscount) {
-            autoDiscount = {
-              id: node.id,
-              title: d.title || "Storewide Auto Discount",
-              percentage,
-              maxCap,
-              minSubtotal,
-              discountAmount: Math.round(calculatedAmount * 100) / 100,
-              isAuto: true,
-            };
-          }
-          continue;
-        }
-
-        // 2. Process Code Discounts (Coupons)
-        const codeNode = d.codes?.nodes?.[0];
-        if (!codeNode || !codeNode.code) continue;
-
-        const couponCode = String(codeNode.code).trim().toUpperCase();
-
-        if (d.__typename === "DiscountCodeApp") {
-          let percentage = 0;
-          let maxCap = 0;
-          let minSubtotal = 0;
-
-          if (node.metafield?.value) {
-            try {
-              const config = JSON.parse(node.metafield.value);
-              percentage = Number(config.percentage) || 0;
-              maxCap = Number(config.maxCapAmount) || 0;
-              minSubtotal = Number(config.minSubtotal) || 0;
-            } catch {}
-          }
-
-          liveCoupons.push({
-            code: couponCode,
-            title: d.title || `${percentage}% OFF${maxCap ? ` (Max ₹${maxCap})` : ""}`,
-            type: "percentage",
-            value: percentage,
-            maxCap: maxCap || undefined,
-            minSubtotal: minSubtotal || undefined,
-          });
-        } else if (d.__typename === "DiscountCodeBasic") {
-          const pct = d.customerGets?.value?.percentage;
-          const amt = d.customerGets?.value?.amount?.amount;
-          const minReq = d.minimumRequirement?.greaterThanOrEqualToSubtotal?.amount;
-          const minSubtotal = minReq ? parseFloat(minReq) : undefined;
-
-          if (pct) {
-            liveCoupons.push({
-              code: couponCode,
-              title: d.title || `${pct}% OFF`,
-              type: "percentage",
-              value: Number(pct),
-              minSubtotal,
-            });
-          } else if (amt) {
-            liveCoupons.push({
-              code: couponCode,
-              title: d.title || `Flat ₹${amt} OFF`,
-              type: "fixed",
-              value: parseFloat(amt),
-              minSubtotal,
-            });
-          }
-        } else {
-          // Bxgy or Free Shipping
-          liveCoupons.push({
-            code: couponCode,
-            title: d.title || couponCode,
-            type: "fixed",
-            value: 0,
-          });
-        }
-      }
-    } catch (err: any) {
-      console.warn("[Live Shopify Discounts Fetch Error]:", err?.message || err);
-    }
-
-    // Resilient Fallback: If live Shopify query could not load discounts (e.g. session restart), fallback to store's active deals
-    if (liveCoupons.length === 0) {
-      liveCoupons.push(
-        {
-          code: "DIWALI50",
-          title: "50% off up to ₹600",
-          type: "percentage",
-          value: 50,
-          maxCap: 600,
-        },
-        {
-          code: "SAVE80",
-          title: "40% off up to ₹200",
-          type: "percentage",
-          value: 40,
-          maxCap: 766,
-        },
-        {
-          code: "SAVE299",
-          title: "Flat ₹299 OFF",
-          type: "fixed",
-          value: 299,
-          minSubtotal: 1000,
-        }
-      );
-    }
+    const { coupons, autoDiscount } = await fetchLiveDiscounts(cleanShop);
 
     // If no code was entered, return the live list of coupons, auto discount, and store deposit settings
     if (!code) {
+      const autoWithAmount = autoDiscount
+        ? {
+            ...autoDiscount,
+            discountAmount:
+              subtotal >= autoDiscount.minSubtotal
+                ? Math.min(
+                    Math.round(((subtotal * autoDiscount.percentage) / 100) * 100) / 100,
+                    autoDiscount.maxCap > 0 ? autoDiscount.maxCap : Number.POSITIVE_INFINITY,
+                    subtotal
+                  )
+                : 0,
+          }
+        : null;
+
       return json(
         {
           success: true,
-          autoDiscount,
-          coupons: liveCoupons,
+          autoDiscount: autoWithAmount,
+          coupons,
           prepaidOffer,
           depositSettings,
         },
@@ -337,18 +100,14 @@ async function handleRequest(request: Request) {
       );
     }
 
-    // Evaluate coupon entered by customer
-    const normalizedCode = code.toUpperCase().trim();
-    const matchedRule = liveCoupons.find(
-      (c) => c.code.toUpperCase() === normalizedCode
-    );
+    const evaluation = evaluateCoupon(coupons, code, subtotal);
 
-    if (!matchedRule) {
+    if (!evaluation.valid) {
       return json(
         {
           valid: false,
-          error: `Coupon code '${code}' is invalid or expired.`,
-          coupons: liveCoupons,
+          error: evaluation.error,
+          coupons,
           prepaidOffer,
           depositSettings,
         },
@@ -356,31 +115,8 @@ async function handleRequest(request: Request) {
       );
     }
 
-    if (matchedRule.minSubtotal && subtotal < matchedRule.minSubtotal) {
-      return json(
-        {
-          valid: false,
-          error: `Minimum order amount of ₹${matchedRule.minSubtotal} required for code '${matchedRule.code}'.`,
-          coupons: liveCoupons,
-          prepaidOffer,
-          depositSettings,
-        },
-        { status: 400, headers: corsHeaders }
-      );
-    }
-
-    // Calculate coupon discount amount
-    let discountAmount = 0;
-    if (matchedRule.type === "percentage") {
-      discountAmount = Math.round(((subtotal * matchedRule.value) / 100) * 100) / 100;
-      if (matchedRule.maxCap && discountAmount > matchedRule.maxCap) {
-        discountAmount = matchedRule.maxCap;
-      }
-    } else {
-      discountAmount = matchedRule.value;
-    }
-
-    discountAmount = Math.min(discountAmount, subtotal);
+    const matchedRule = evaluation.coupon!;
+    const discountAmount = evaluation.discountAmount;
     const effectiveSubtotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
     // Calculate extra prepaid discount on effective subtotal
@@ -423,7 +159,7 @@ async function handleRequest(request: Request) {
         balanceAmount: balance,
         depositSettings,
         prepaidOffer,
-        coupons: liveCoupons,
+        coupons,
       },
       { headers: corsHeaders }
     );
@@ -434,3 +170,6 @@ async function handleRequest(request: Request) {
     );
   }
 }
+
+// Re-exported for tests that import the route module directly.
+export { computeCouponDiscount };

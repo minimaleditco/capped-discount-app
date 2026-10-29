@@ -5,6 +5,7 @@ import {
   getPartialCodSettings,
   getDepositById,
   getDepositByOrderId,
+  normalizeShopDomain,
   saveDeposit,
 } from "../db.server";
 import { getGatewayAdapter } from "../services/gateways";
@@ -30,7 +31,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     gatewaySignature,
   } = body;
 
-  if (!shop || (!depositId && !orderId) || !gatewayPaymentId) {
+  const cleanShop = normalizeShopDomain(shop);
+
+  if (!cleanShop || (!depositId && !orderId) || !gatewayPaymentId) {
     return json(
       { success: false, error: "Missing required fields: shop, depositId/orderId, gatewayPaymentId" },
       { status: 400 }
@@ -39,9 +42,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const depositRecord = depositId
     ? await getDepositById(depositId)
-    : await getDepositByOrderId(shop, orderId);
+    : await getDepositByOrderId(cleanShop, orderId);
 
-  if (!depositRecord) {
+  if (!depositRecord || normalizeShopDomain(depositRecord.shop) !== cleanShop) {
     return json({ success: false, error: "Deposit record not found" }, { status: 404 });
   }
 
@@ -55,12 +58,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  const settings = await getPartialCodSettings(shop);
-  const gatewayAdapter = getGatewayAdapter(settings.gateway);
+  const settings = await getPartialCodSettings(cleanShop);
+  // Verify with the gateway that actually created the payment, not whichever
+  // gateway happens to be selected now (merchants switch gateways).
+  const gatewayAdapter = getGatewayAdapter(depositRecord.gateway || settings.gateway);
 
   // 1. Verify Payment Authenticity with Gateway
   const isValid = await gatewayAdapter.verifyPayment({
-    shop,
+    shop: cleanShop,
     orderId: depositRecord.orderId,
     gatewayPaymentId,
     gatewayOrderId: gatewayOrderId || depositRecord.gatewayTransactionId,
@@ -78,7 +83,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // 2. Update Shopify Order via Admin GraphQL API
   try {
-    const { admin } = await unauthenticated.admin(shop);
+    const { admin } = await unauthenticated.admin(cleanShop);
 
     // Step A: Register the payment transaction (Record deposit amount as CAPTURED)
     const transactionMutation = `

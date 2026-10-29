@@ -24,6 +24,7 @@ import { authenticate } from "../shopify.server";
 import { sendToMetaCAPI } from "../services/meta-capi.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
+import { generateOtpCode } from "../services/otp";
 import {
   getPartialCodSettings,
   savePartialCodSettings,
@@ -150,7 +151,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
         whatsappSender,
       });
 
-      const res = await sendWhatsAppOtp(shop, testPhone, "123456");
+      const res = await sendWhatsAppOtp(shop, testPhone, generateOtpCode());
       if (res.success) {
         return json<ActionData>({
           success: true,
@@ -186,7 +187,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
         smsSenderId,
       });
 
-      const res = await sendSmsOtp(shop, testPhone, "123456");
+      const res = await sendSmsOtp(shop, testPhone, generateOtpCode());
       if (res.success) {
         return json<ActionData>({
           success: true,
@@ -912,7 +913,7 @@ export default function PartialCodPage() {
                     <Select
                       label="SMS Delivery Provider"
                       options={[
-                        { label: "Built-in Sandbox Simulator (Zero cost, testing with 123456)", value: "simulator" },
+                        { label: "Built-in Sandbox Simulator (Zero cost, testing with a generated code)", value: "simulator" },
                         { label: "Fast2SMS (Recommended for India - ₹0.15/SMS, instant OTP API)", value: "fast2sms" },
                         { label: "Twilio SMS (Global cellular SMS carrier)", value: "twilio" },
                       ]}
@@ -922,7 +923,7 @@ export default function PartialCodPage() {
                         smsProvider === "fast2sms"
                           ? "Fast2SMS delivers OTPs directly to Indian mobile numbers via Quick OTP without needing DLT approval for testing."
                           : smsProvider === "simulator"
-                          ? "Sandbox mode: Displays the OTP code in the terminal logs and accepts 123456 for instant testing."
+                          ? "Sandbox mode: Displays the OTP code in the terminal logs and prints the generated code in the server logs and shows it in the theme simulator."
                           : "Twilio delivers carrier SMS globally."
                       }
                     />
