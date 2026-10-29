@@ -1374,7 +1374,7 @@
       const sentText = $("pcod-otp-sent-text");
       if (sentText) {
         sentText.textContent = data.debugOtp
-          ? `✅ Simulator SMS OTP: ${data.debugOtp} (or 123456)`
+          ? `✅ Simulator SMS OTP: ${data.debugOtp}`
           : `✅ 6-digit code sent via SMS to +91 ${rawPhone}!`;
       }
 
