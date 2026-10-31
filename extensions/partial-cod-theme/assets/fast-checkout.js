@@ -72,6 +72,22 @@
             </div>
           </div>
 
+          <!-- Delivery pincode (only shown when a pincode deposit rule exists) -->
+          <div class="pcod-pincode-block" id="pcod-pincode-block" style="display: none;">
+            <label class="pcod-pincode-label" for="pcod-pincode-input">Delivery pincode</label>
+            <input
+              type="text"
+              id="pcod-pincode-input"
+              class="pcod-pincode-input"
+              inputmode="numeric"
+              autocomplete="postal-code"
+              maxlength="10"
+              placeholder="e.g. 400053"
+            />
+            <div class="pcod-pincode-help">Used to calculate your cash-on-delivery deposit.</div>
+            <div class="pcod-pincode-error" id="pcod-pincode-error" style="display: none;"></div>
+          </div>
+
           <!-- Option Cards Container (Full Prepaid & Partial COD) -->
           <div class="pcod-cards-container" id="pcod-cards-container">
             <!-- Option 1: Full Prepaid -->
@@ -634,6 +650,7 @@
     depositSettings: { type: "percentage", value: 10 },
     autoDiscount: null,
     coupons: [],
+    requiresPincode: false,
     prepaidOffer: {
       enabled: true,
       type: "percentage",
@@ -727,6 +744,12 @@
         // for display and include them in our own calculation, but never send
         // them back as a coupon code (the server would reject "AUTO").
         storeOffers.autoDiscount = data.autoDiscount || null;
+
+        // A pincode-based deposit rule can only be evaluated if the shopper
+        // types the pincode here: the draft order is created before Shopify
+        // checkout collects the delivery address.
+        storeOffers.requiresPincode = Boolean(data.requiresPincode);
+        syncPincodeField();
 
         // Auto-apply the highest discount deal if user hasn't manually selected another
         if (!activeCoupon) {
@@ -1348,10 +1371,77 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Delivery pincode
+  //
+  // Pincode deposit rules are evaluated server-side when the draft order is
+  // created, which happens before Shopify checkout asks for an address. The
+  // pincode therefore has to be collected here; the field only appears when
+  // the merchant has at least one pincode rule.
+  // ---------------------------------------------------------------------------
+  function setPincodeError(msg) {
+    const elem = $("pcod-pincode-error");
+    if (!elem) return;
+    if (msg) {
+      elem.textContent = msg;
+      elem.style.display = "block";
+    } else {
+      elem.style.display = "none";
+    }
+  }
+
+  function syncPincodeField() {
+    const block = $("pcod-pincode-block");
+    if (!block) return;
+    block.style.display = storeOffers.requiresPincode ? "block" : "none";
+    if (!storeOffers.requiresPincode) setPincodeError("");
+  }
+
+  function readPincode() {
+    const input = $("pcod-pincode-input");
+    return input ? input.value.replace(/[^0-9a-zA-Z]/g, "").slice(0, 10) : "";
+  }
+
+  function validatePincode(isPrepaid) {
+    if (isPrepaid || !storeOffers.requiresPincode) return true;
+    if (readPincode().length >= 3) {
+      setPincodeError("");
+      return true;
+    }
+    setPincodeError("Enter your delivery pincode so we can calculate the COD deposit.");
+    const block = $("pcod-pincode-block");
+    if (block) block.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input = $("pcod-pincode-input");
+    if (input) input.focus();
+    return false;
+  }
+
+  function resetCheckoutButtons() {
+    const codBtn = $("pcod-btn-choose-cod");
+    const prepaidBtn = $("pcod-btn-choose-prepaid");
+    if (codBtn) {
+      codBtn.disabled = false;
+      codBtn.style.opacity = "1";
+    }
+    if (prepaidBtn) {
+      prepaidBtn.disabled = false;
+      prepaidBtn.style.opacity = "1";
+    }
+    const verifyBtn = $("pcod-otp-verify-btn");
+    if (verifyBtn) {
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = "Verify SMS & Place Order →";
+    }
+    // Labels contain the live amounts, so let the price renderer restore them.
+    recalculateModalPrices();
+  }
+
   async function handleSendOtp() {
     const phoneInput = $("pcod-otp-phone-input");
     const sendBtn = $("pcod-otp-send-btn");
     const rawPhone = phoneInput ? phoneInput.value.replace(/[^0-9]/g, "") : "";
+
+    if (!validatePincode(false)) return;
 
     if (!rawPhone || rawPhone.length < 10) {
       setOtpError("Please enter a valid 10-digit mobile number.");
@@ -1454,6 +1544,8 @@
   }
 
   async function handleCodCheckout() {
+    if (!validatePincode(false)) return;
+
     const codBtn = $("pcod-btn-choose-cod");
     const label = $("pcod-cod-btn-label");
     if (codBtn) {
@@ -1490,6 +1582,12 @@
   }
 
   async function executeDraftCheckout(phone, otpToken, isPrepaid, prepaidDiscount) {
+    if (!validatePincode(!!isPrepaid)) {
+      hideOtpStep();
+      resetCheckoutButtons();
+      return;
+    }
+
     const codBtn = $("pcod-btn-choose-cod");
     const prepaidBtn = $("pcod-btn-choose-prepaid");
     const label = isPrepaid ? $("pcod-prepaid-btn-label") : $("pcod-cod-btn-label");
@@ -1520,6 +1618,7 @@
           })),
           phone: phone || undefined,
           otpToken: otpToken || undefined,
+          pincode: readPincode() || undefined,
           couponCode: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : undefined,
           couponDiscount: activeCoupon && !activeCoupon.isAuto ? activeCoupon.discountAmount : 0,
         };
@@ -1537,6 +1636,7 @@
           title,
           phone: phone || undefined,
           otpToken: otpToken || undefined,
+          pincode: readPincode() || undefined,
           couponCode: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : undefined,
           couponDiscount: activeCoupon && !activeCoupon.isAuto ? activeCoupon.discountAmount : 0,
         };
@@ -1558,18 +1658,7 @@
     } catch (err) {
       console.error("[Checkout Error]:", err);
       alert(err.message || "Failed to open checkout. Please try again.");
-      if (codBtn) {
-        codBtn.disabled = false;
-        codBtn.style.opacity = "1";
-      }
-      if (prepaidBtn) {
-        prepaidBtn.disabled = false;
-        prepaidBtn.style.opacity = "1";
-      }
-      const codLabel = $("pcod-cod-btn-label");
-      if (codLabel) codLabel.textContent = "Pay Deposit & Confirm COD →";
-      const prepLabel = $("pcod-prepaid-btn-label");
-      if (prepLabel) prepLabel.textContent = "Pay Full Online →";
+      resetCheckoutButtons();
     }
   }
 

@@ -3,6 +3,7 @@ import {
   getPartialCodSettings,
   type DepositRuleRecord,
 } from "../db.server";
+import { cleanPincode, matchesPincodeList } from "./pincode";
 
 export interface CartLineItem {
   title?: string;
@@ -31,14 +32,6 @@ export interface CalculatedDepositResult {
   matchedRule: DepositRuleRecord | null;
   ruleSummary: string;
   appliedType: "rule" | "store_default";
-}
-
-/**
- * Normalizes postal code / pincode string
- */
-function cleanPincode(pin?: string): string {
-  if (!pin) return "";
-  return String(pin).replace(/[^a-zA-Z0-9]/g, "").trim().toLowerCase();
 }
 
 /**
@@ -91,8 +84,7 @@ export async function evaluateDepositRules(
         break;
       }
     } else if (rule.conditionType === "Pincode") {
-      const targetPin = cleanPincode(rawVal);
-      if (customerPin && targetPin && customerPin.startsWith(targetPin)) {
+      if (matchesPincodeList(rawVal, customerPin)) {
         matchedRule = rule;
         break;
       }

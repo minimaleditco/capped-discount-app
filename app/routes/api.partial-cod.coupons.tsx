@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { getPartialCodSettings, normalizeShopDomain } from "../db.server";
+import { getDepositRules, getPartialCodSettings, normalizeShopDomain } from "../db.server";
 import {
   computeAutoDiscountAmount,
   computeCouponDiscount,
@@ -71,6 +71,11 @@ async function handleRequest(request: Request) {
       value: Number(settings.depositValue ?? 10),
     };
 
+    // The draft order is created before the shopper reaches Shopify checkout,
+    // so a pincode-based rule can only work if the widget asks for the pincode.
+    const depositRules = await getDepositRules(cleanShop);
+    const requiresPincode = depositRules.some((rule) => rule.conditionType === "Pincode");
+
     const { coupons, autoDiscount } = await fetchLiveDiscounts(cleanShop);
 
     // If no code was entered, return the live list of coupons, auto discount, and store deposit settings
@@ -89,6 +94,7 @@ async function handleRequest(request: Request) {
           coupons,
           prepaidOffer,
           depositSettings,
+          requiresPincode,
         },
         { headers: corsHeaders }
       );
@@ -104,6 +110,7 @@ async function handleRequest(request: Request) {
           coupons,
           prepaidOffer,
           depositSettings,
+          requiresPincode,
         },
         { status: 400, headers: corsHeaders }
       );
@@ -154,6 +161,7 @@ async function handleRequest(request: Request) {
         depositSettings,
         prepaidOffer,
         coupons,
+        requiresPincode,
       },
       { headers: corsHeaders }
     );

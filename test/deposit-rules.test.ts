@@ -115,8 +115,7 @@ describe("Phase 2: Dynamic Deposit Rules Engine", () => {
     expect(result.balance).toBe(1000);
   });
 
-  it("should respect Priority ordering when multiple rules could match", async () => {
-    // Low priority rule: Cart Value > 2000 -> 20%
+  it("should respect Priority ordering when multiple rules could match", async () => {    // Low priority rule: Cart Value > 2000 -> 20%
     await createDepositRule(testShop, {
       conditionType: "Cart Value",
       conditionValue: "2000",
@@ -142,5 +141,43 @@ describe("Phase 2: Dynamic Deposit Rules Engine", () => {
     expect(result.appliedType).toBe("rule");
     expect(result.matchedRule?.conditionType).toBe("Pincode"); // Priority 99 won!
     expect(result.deposit).toBe(400);
+  });
+
+  it("should match any pincode in a comma-separated rule", async () => {
+    await createDepositRule(testShop, {
+      conditionType: "Pincode",
+      conditionValue: "110001, 400053, 5600*",
+      depositType: "Flat",
+      depositValue: 200,
+      priority: 7,
+    });
+
+    for (const pincode of ["110001", "400053", "560099"]) {
+      const result = await evaluateDepositRules(testShop, { totalPrice: 1200, pincode });
+      expect(result.appliedType, `expected a match for ${pincode}`).toBe("rule");
+      expect(result.deposit).toBe(200);
+      expect(result.balance).toBe(1000);
+    }
+
+    const unlisted = await evaluateDepositRules(testShop, {
+      totalPrice: 1200,
+      pincode: "700001",
+    });
+    expect(unlisted.appliedType).toBe("store_default");
+    expect(unlisted.deposit).toBe(120); // 10% default
+  });
+
+  it("should fall back to the store default when no pincode is supplied", async () => {
+    await createDepositRule(testShop, {
+      conditionType: "Pincode",
+      conditionValue: "400053",
+      depositType: "Flat",
+      depositValue: 200,
+      priority: 7,
+    });
+
+    const result = await evaluateDepositRules(testShop, { totalPrice: 1200 });
+    expect(result.appliedType).toBe("store_default");
+    expect(result.deposit).toBe(120);
   });
 });

@@ -153,6 +153,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // ---------------------------------------------------------------------
     const customerPhone = String(body.phone || body.customerPhone || "").replace(/[^0-9]/g, "");
     const otpToken = String(body.otpToken || body.token || "").trim();
+    const deliveryPincode = String(body.pincode || body.shippingAddress?.zip || "")
+      .replace(/[^0-9a-zA-Z]/g, "")
+      .slice(0, 10);
 
     if (!isPrepaid && settings.whatsappEnabled) {
       const isVerified = await validateVerificationToken(shop, customerPhone, otpToken);
@@ -207,7 +210,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           price: l.unitPrice,
           quantity: l.quantity,
         })),
-        pincode: body.pincode || body.shippingAddress?.zip,
+        pincode: deliveryPincode,
         shippingAddress: body.shippingAddress,
       });
 
@@ -242,6 +245,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { key: "Pay Now (Advance Deposit)", value: `₹${onlineAmount.toFixed(2)}` },
         { key: "Balance Due on Delivery (Cash)", value: `₹${balance.toFixed(2)}` }
       );
+      if (deliveryPincode) {
+        orderContextAttributes.push({ key: "Delivery Pincode", value: deliveryPincode });
+      }
     }
 
     const lineItemsForDraft = lines.map((line, index) => {
@@ -277,6 +283,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           `Doorstep Balance: ₹${balance}`,
           `Collect ₹${balance} on Delivery`,
           matchedRuleType ? `Rule: ${matchedRuleType}` : "Rule: Store Default",
+          ...(deliveryPincode ? [`Pincode: ${deliveryPincode}`] : []),
           ...(customerPhone ? [`SMS Verified: +91${customerPhone}`] : []),
           ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
         ];
