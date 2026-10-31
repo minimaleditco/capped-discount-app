@@ -936,9 +936,7 @@
   overflow: hidden;
   margin-bottom: 12px;
   transition: all 0.15s ease;
-}
-
-.pcod-otp-input-wrap:focus-within {
+}.pcod-otp-input-wrap:focus-within {
   border-color: var(--pcod-ring);
   box-shadow: 0 0 0 1px var(--pcod-ring);
 }
@@ -962,6 +960,53 @@
   color: var(--pcod-fg);
   font-weight: 500;
   letter-spacing: 0.02em;
+}
+
+/* Delivery pincode (shown only when a pincode deposit rule exists) */
+.pcod-pincode-block {
+  margin-bottom: 14px;
+}
+
+.pcod-pincode-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pcod-fg);
+  margin-bottom: 6px;
+}
+
+.pcod-pincode-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--pcod-fg);
+  background: var(--pcod-bg);
+  border: 1px solid var(--pcod-border);
+  border-radius: var(--pcod-radius-md);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.pcod-pincode-input:focus {
+  border-color: var(--pcod-ring);
+  box-shadow: 0 0 0 1px var(--pcod-ring);
+}
+
+.pcod-pincode-help {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--pcod-muted-fg);
+  line-height: 1.4;
+}
+
+.pcod-pincode-error {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #b42318;
 }
 
 /* Authentic shadcn InputOTP 6-Box Slots */

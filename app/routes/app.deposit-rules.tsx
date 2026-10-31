@@ -30,6 +30,14 @@ import {
   type DepositRuleRecord,
   type PartialCodSettings,
 } from "../db.server";
+import { normalizePincodeList, parsePincodeList } from "../services/pincode";
+
+function formatPincodeTargets(value: string): string {
+  const codes = parsePincodeList(value);
+  if (codes.length === 0) return "—";
+  if (codes.length <= 3) return codes.join(", ");
+  return `${codes.slice(0, 3).join(", ")} +${codes.length - 3} more`;
+}
 
 interface LoaderData {
   rules: DepositRuleRecord[];
@@ -69,14 +77,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     if (intent === "create" || intent === "update") {
       const conditionType = (formData.get("conditionType") as string) || "Cart Value";
-      const conditionValue = (formData.get("conditionValue") as string) || "";
+      const rawConditionValue = (formData.get("conditionValue") as string) || "";
+      const conditionValue =
+        conditionType === "Pincode"
+          ? normalizePincodeList(rawConditionValue)
+          : rawConditionValue.trim();
       const depositType = (formData.get("depositType") as string) || "Flat";
       const depositValue = parseFloat((formData.get("depositValue") as string) || "0");
       const priority = parseInt((formData.get("priority") as string) || "0", 10);
 
       const errors: string[] = [];
-      if (!conditionValue.trim()) {
-        errors.push("Condition criteria value is required.");
+      if (!conditionValue) {
+        errors.push(
+          conditionType === "Pincode"
+            ? "Enter at least one pincode (separate multiple codes with commas)."
+            : "Condition criteria value is required."
+        );
       }
       if (isNaN(depositValue) || depositValue <= 0) {
         errors.push("Deposit value must be a positive number.");
@@ -219,7 +235,7 @@ export default function DepositRulesPage() {
       case "SKU":
         return "Enter product SKU or Variant ID (e.g. WATCH-GOLD-01 or 45192837192).";
       case "Pincode":
-        return "Enter delivery postal code or prefix (e.g. 110001 or 110 to match entire postal zones).";
+        return "One or more postal codes, separated by commas (e.g. 400053, 400054). A shorter code matches the whole area (4000 matches every 4000xx pincode).";
       default:
         return "";
     }
@@ -232,9 +248,22 @@ export default function DepositRulesPage() {
       case "SKU":
         return "Product SKU or Variant ID";
       case "Pincode":
-        return "Postal Code / Pincode Prefix";
+        return "Postal Codes / Pincodes";
       default:
         return "Condition Value";
+    }
+  }, [conditionType]);
+
+  const conditionPlaceholder = useMemo(() => {
+    switch (conditionType) {
+      case "Cart Value":
+        return "3000";
+      case "SKU":
+        return "WATCH-GOLD-01";
+      case "Pincode":
+        return "400053, 400054, 5600";
+      default:
+        return "";
     }
   }, [conditionType]);
 
@@ -325,7 +354,7 @@ export default function DepositRulesPage() {
                               ? `Carts ≥ ₹${Number(rule.conditionValue).toLocaleString("en-IN")}`
                               : rule.conditionType === "SKU"
                               ? `SKU: ${rule.conditionValue}`
-                              : `PIN: ${rule.conditionValue}*`}
+                              : `PIN: ${formatPincodeTargets(rule.conditionValue)}`}
                           </Text>
                         </IndexTable.Cell>
                         <IndexTable.Cell>
@@ -393,6 +422,7 @@ export default function DepositRulesPage() {
               value={conditionValue}
               onChange={setConditionValue}
               autoComplete="off"
+              placeholder={conditionPlaceholder}
               helpText={conditionHelpText}
             />
 
