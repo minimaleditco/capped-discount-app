@@ -37,6 +37,29 @@ const schema = usePostgres
   ? "prisma/schema.postgres.prisma"
   : "prisma/schema.prisma";
 
+/**
+ * Schema commands (db push / migrate) run DDL, which Neon's pooled endpoint
+ * (PgBouncer) does not reliably support. Neon uses the same host without the
+ * "-pooler" suffix for direct connections, so derive that for DDL commands.
+ * Runtime queries keep using whatever URL the dashboard provides.
+ */
+const args = process.argv.slice(2);
+const isSchemaCommand =
+  args[0] === "migrate" || (args[0] === "db" && args[1] === "push");
+
+let childEnv = process.env;
+if (isSchemaCommand && usePostgres && url.includes("-pooler.")) {
+  try {
+    const direct = new URL(url);
+    direct.hostname = direct.hostname.replace("-pooler.", ".");
+    direct.searchParams.delete("pgbouncer");
+    childEnv = { ...process.env, DATABASE_URL: direct.toString() };
+    console.log("[prisma] Using the direct Neon endpoint for schema changes.");
+  } catch {
+    // Fall back to the URL as provided; Prisma will report any problem.
+  }
+}
+
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const binary = join(
   projectRoot,
@@ -44,7 +67,6 @@ const binary = join(
   ".bin",
   process.platform === "win32" ? "prisma.cmd" : "prisma"
 );
-const args = process.argv.slice(2);
 
 if (!existsSync(binary)) {
   console.error('[prisma] Prisma CLI not found. Run "npm install" first.');
@@ -53,7 +75,7 @@ if (!existsSync(binary)) {
 
 const result = spawnSync(binary, [...args, "--schema", schema], {
   stdio: "inherit",
-  env: process.env,
+  env: childEnv,
   cwd: projectRoot,
   shell: false,
 });
