@@ -222,6 +222,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // ---------------------------------------------------------------------
     const shares = allocateProportionally(onlineAmount, lines);
 
+    // Order-level context is attached to the first line only: Shopify renders
+    // line-item attributes under each product on the invoice, so repeating the
+    // deposit/balance on every line would be noise.
+    const orderContextAttributes: { key: string; value: string }[] = [];
+    if (appliedDiscount > 0) {
+      orderContextAttributes.push({
+        key: "Discount Applied",
+        value: `-₹${appliedDiscount.toFixed(2)} (${useCoupon ? `code ${couponCode}` : autoTitle})`,
+      });
+    }
+    if (isPrepaid) {
+      orderContextAttributes.push({
+        key: "Payment",
+        value: `Paid in full online: ₹${onlineAmount.toFixed(2)}`,
+      });
+    } else {
+      orderContextAttributes.push(
+        { key: "Pay Now (Advance Deposit)", value: `₹${onlineAmount.toFixed(2)}` },
+        { key: "Balance Due on Delivery (Cash)", value: `₹${balance.toFixed(2)}` }
+      );
+    }
+
     const lineItemsForDraft = lines.map((line, index) => {
       const lineShare = shares[index] ?? 0;
       const unitShare = Math.max(0, Math.round((lineShare / line.quantity) * 100) / 100);
@@ -236,6 +258,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         customAttributes: [
           { key: "Catalog Unit Price", value: `₹${line.unitPrice.toFixed(2)}` },
           { key: "Net Product Total", value: `₹${line.lineTotal.toFixed(2)}` },
+          ...(index === 0 ? orderContextAttributes : []),
         ],
       };
     });
