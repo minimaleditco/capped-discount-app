@@ -6,14 +6,17 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "prisma generate && prisma db push && remix vite:build",
+    "build": "npm run prisma:generate && npm run prisma:push && remix vite:build",
+    "prisma:generate": "node scripts/run-prisma.mjs generate",
+    "prisma:push": "node scripts/run-prisma.mjs db push",
     "db:check": "node scripts/test-db-connection.js",
-    "db:migrate": "prisma migrate deploy",
+    "db:migrate": "node scripts/run-prisma.mjs migrate deploy",
     "dev": "npx @shopify/cli app dev",
     "deploy": "npx @shopify/cli app deploy",
     "start": "remix-serve ./build/server/index.js",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run prisma:generate",
     "test": "vitest run"
   },
   "dependencies": {

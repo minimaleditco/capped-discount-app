@@ -1,0 +1,125 @@
+// Postgres schema used in production (Neon / Render Postgres).
+// Kept byte-for-byte identical to schema.prisma apart from the datasource.
+// test/schema-parity.test.ts fails the build if the two drift apart.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+model PartialCodSettings {
+  shop              String   @id
+  enabled           Boolean  @default(true)
+  depositType       String   @default("percentage")
+  depositValue      Float    @default(10)
+  minOrderSubtotal  Float    @default(0)
+  gateway           String   @default("simulator")
+  apiKey            String?  @default("")
+  apiSecret         String?  @default("")
+  autoCancelMinutes Int      @default(30)
+  metaPixelId       String?  @default("")
+  metaCapiToken     String?  @default("")
+  whatsappEnabled   Boolean  @default(false)
+  whatsappProvider  String   @default("simulator")
+  whatsappApiKey    String?  @default("")
+  whatsappApiUrl         String?  @default("")
+  whatsappSender         String?  @default("")
+  prepaidDiscountEnabled Boolean  @default(true)
+  prepaidDiscountType    String   @default("percentage")
+  prepaidDiscountValue   Float    @default(5)
+  prepaidDiscountBadge   String   @default("⚡ Extra 5% OFF on Prepaid")
+  smsProvider            String   @default("simulator")
+  smsApiKey              String?  @default("")
+  smsSenderId            String?  @default("")
+  availableCoupons       String?  @default("[]")
+  createdAt              DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PartialCodDeposit {
+  id                   String   @id @default(cuid())
+  shop                 String
+  orderId              String
+  orderName            String
+  totalAmount          Float
+  depositAmount        Float
+  remainingBalance     Float
+  currency             String   @default("INR")
+  status               String   @default("pending")
+  gateway              String   @default("simulator")
+  gatewayTransactionId String?
+  customerPhone        String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([shop])
+  @@index([orderId])
+}
+
+model DepositRule {
+  id             String   @id @default(cuid())
+  shop           String
+  conditionType  String
+  conditionValue String
+  depositType    String
+  depositValue   Float
+  priority       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([shop])
+}
+
+model DiscountSavings {
+  id                     String   @id @default(cuid())
+  shop                   String
+  orderId                String
+  originalDiscountAmount Float
+  cappedDiscountAmount   Float
+  marginSaved            Float
+  createdAt              DateTime @default(now())
+
+  @@index([shop])
+  @@index([orderId])
+}
+
+model OtpSession {
+  id        String   @id @default(cuid())
+  shop      String
+  phone     String
+  otpCode   String
+  token     String   @unique
+  verified  Boolean  @default(false)
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([shop, phone])
+  @@index([token])
+}
