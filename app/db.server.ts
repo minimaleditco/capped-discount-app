@@ -49,8 +49,17 @@ export function formatDatabaseUrl(rawUrl?: string): string {
     if (!url.searchParams.has("sslmode") && !isLocalhost) {
       url.searchParams.set("sslmode", "require");
     }
+
+    // Neon's pooled endpoint ("...-pooler...") sits behind PgBouncer, which
+    // does not support prepared statements. Prisma needs to be told explicitly.
+    if (url.hostname.includes("-pooler") && !url.searchParams.has("pgbouncer")) {
+      url.searchParams.set("pgbouncer", "true");
+    }
+
+    // One app instance talks to the database; a large pool only wastes Neon's
+    // connection budget and increases the chance of hitting its limit.
     if (!url.searchParams.has("connection_limit")) {
-      url.searchParams.set("connection_limit", process.env.DB_POOL_LIMIT || "25");
+      url.searchParams.set("connection_limit", process.env.DB_POOL_LIMIT || "5");
     }
     if (!url.searchParams.has("pool_timeout")) {
       url.searchParams.set("pool_timeout", process.env.DB_POOL_TIMEOUT || "10");

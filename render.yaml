@@ -20,3 +20,8 @@ services:
         value: write_discounts,read_discounts,write_orders,read_orders,write_draft_orders,read_draft_orders,read_fulfillments,read_products,read_customers
       - key: SHOPIFY_APP_URL
         sync: false
+      # Postgres connection string (Neon or Render Postgres). When this starts
+      # with postgres:// the build generates the Postgres Prisma client and
+      # pushes the schema; when unset the app falls back to local SQLite.
+      - key: DATABASE_URL
+        sync: false

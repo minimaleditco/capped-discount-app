@@ -13,7 +13,7 @@ import {
   toVariantGid,
 } from "../app/services/pricing.server";
 import { simulatorAllowed } from "../app/services/gateways";
-import { normalizeShopDomain } from "../app/db.server";
+import { formatDatabaseUrl, normalizeShopDomain } from "../app/db.server";
 
 const percentCoupon: CouponRule = {
   code: "DIWALI50",
@@ -191,5 +191,32 @@ describe("Security hardening: simulator gateway", () => {
     process.env.NODE_ENV = "production";
     process.env.ALLOW_SIMULATOR_GATEWAY = "true";
     expect(simulatorAllowed()).toBe(true);
+  });
+});
+
+describe("Database URL handling (Neon / Render Postgres)", () => {
+  it("requires TLS and a small pool for a Neon direct connection", () => {
+    const url = new URL(
+      formatDatabaseUrl(
+        "postgresql://app:pw@ep-cool-123.ap-southeast-1.aws.neon.tech/neondb"
+      )
+    );
+    expect(url.searchParams.get("sslmode")).toBe("require");
+    expect(url.searchParams.get("connection_limit")).toBe("5");
+    expect(url.searchParams.get("pgbouncer")).toBeNull();
+  });
+
+  it("enables pgbouncer mode for Neon's pooled endpoint", () => {
+    const url = new URL(
+      formatDatabaseUrl(
+        "postgresql://app:pw@ep-cool-123-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+      )
+    );
+    expect(url.searchParams.get("pgbouncer")).toBe("true");
+  });
+
+  it("leaves localhost URLs without TLS enforcement", () => {
+    const url = new URL(formatDatabaseUrl("postgresql://postgres:pw@localhost:5432/db"));
+    expect(url.searchParams.get("sslmode")).toBeNull();
   });
 });
