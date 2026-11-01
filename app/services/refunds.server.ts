@@ -1,4 +1,4 @@
-import { prisma, normalizeShopDomain, type PartialCodDepositRecord } from "../db.server";
+import { prisma, normalizeShopDomain } from "../db.server";
 
 export interface FormattedPartialCodOrder {
   id: string;

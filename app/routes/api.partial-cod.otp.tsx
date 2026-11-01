@@ -8,7 +8,7 @@ import {
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
 import { evaluateSendRateLimit, generateOtpCode } from "../services/otp";
-import { simulatorAllowed } from "../services/gateways";
+import { simulatorAllowed } from "../services/simulator";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

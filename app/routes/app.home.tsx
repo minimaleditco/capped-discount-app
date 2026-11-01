@@ -113,6 +113,8 @@ export default function AppHomePage() {
     stats.metaCapiEnabled,
   ].filter(Boolean).length;
   const progressPercent = Math.round((completedSteps / 5) * 100);
+  const storeHandle = shop.replace(/\.myshopify\.com$/i, "");
+  const themeEditorUrl = `https://admin.shopify.com/store/${storeHandle}/themes/current/editor?context=apps`;
 
   return (
     <Page
@@ -267,6 +269,40 @@ export default function AppHomePage() {
             </div>
           </InlineStack>
         </div>
+
+        {/* ================================================================= */}
+        {/* STOREFRONT WIDGET SETUP                                           */}
+        {/* ================================================================= */}
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="050">
+                <Text as="h2" variant="headingMd">
+                  Enable the storefront widget
+                </Text>
+                <Text as="p" tone="subdued">
+                  The popup and cart button ship as a theme app extension — no
+                  theme code editing required.
+                </Text>
+              </BlockStack>
+              <Button url={themeEditorUrl} external>
+                Open theme editor
+              </Button>
+            </InlineStack>
+            <Text as="p" variant="bodySm">
+              <strong>1.</strong> Open the theme editor. <strong>2.</strong> In the
+              left sidebar, click <strong>App embeds</strong> and turn on{" "}
+              <strong>Partial COD on Cart</strong>. <strong>3.</strong> Click{" "}
+              <strong>Save</strong>. The widget then appears on product pages and in
+              the cart.
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Prefer a dedicated button on the product page? Add the{" "}
+              <strong>Partial COD Button</strong> app block to the product template
+              instead.
+            </Text>
+          </BlockStack>
+        </Card>
 
         {/* ================================================================= */}
         {/* SETUP CHECKLIST & NAVIGATION PROGRESS                             */}

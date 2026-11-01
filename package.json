@@ -16,8 +16,8 @@
     "start": "remix-serve ./build/server/index.js",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run prisma:generate",
-    "test": "vitest run"
+    "pretest": "DATABASE_URL=file:./dev.db node scripts/run-prisma.mjs generate",
+    "test": "DATABASE_URL=file:./dev.db vitest run"
   },
   "dependencies": {
     "@preact/signals": "^2.11.3",

@@ -11,3 +11,7 @@ extensions/**/dist
 extensions/**/.build-lock
 prisma/*.db
 prisma/*.db-journal
+.neon
+.env.neon
+.agents/
+skills-lock.json

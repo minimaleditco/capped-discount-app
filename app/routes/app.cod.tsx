@@ -18,7 +18,6 @@ import {
   Divider,
   Box,
   Badge,
-  IndexTable,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { sendToMetaCAPI } from "../services/meta-capi.server";
@@ -28,14 +27,11 @@ import { generateOtpCode } from "../services/otp";
 import {
   getPartialCodSettings,
   savePartialCodSettings,
-  getDepositsByShop,
   type PartialCodSettings,
-  type PartialCodDepositRecord,
 } from "../db.server";
 
 interface LoaderData {
   settings: PartialCodSettings;
-  deposits: PartialCodDepositRecord[];
   shop: string;
 }
 
@@ -50,11 +46,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session?.shop || "unknown";
 
   const settings = await getPartialCodSettings(shop);
-  const deposits = await getDepositsByShop(shop, 10);
 
   return json<LoaderData>({
     settings,
-    deposits,
     shop,
   });
 };
@@ -205,9 +199,6 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     const depositType = (formData.get("depositType") as "fixed" | "percentage") || "percentage";
     const depositValue = parseFloat(formData.get("depositValue") as string) || 10;
     const minOrderSubtotal = parseFloat(formData.get("minOrderSubtotal") as string) || 0;
-    const gateway = (formData.get("gateway") as any) || "simulator";
-    const apiKey = (formData.get("apiKey") as string) || "";
-    const apiSecret = (formData.get("apiSecret") as string) || "";
     const autoCancelMinutes = parseInt(formData.get("autoCancelMinutes") as string, 10) || 30;
     const metaPixelId = (formData.get("metaPixelId") as string) || "";
     const metaCapiToken = (formData.get("metaCapiToken") as string) || "";
@@ -233,9 +224,6 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     if (depositType === "percentage" && depositValue > 90) {
       errors.push("Deposit percentage cannot exceed 90%.");
     }
-    if (gateway !== "simulator" && enabled && (!apiKey || !apiSecret)) {
-      errors.push(`API Key and Secret are required when using ${gateway.toUpperCase()}.`);
-    }
     if (whatsappEnabled && whatsappProvider !== "simulator" && !whatsappApiKey) {
       errors.push(`WhatsApp API Key is required when using ${whatsappProvider.toUpperCase()}.`);
     }
@@ -250,9 +238,11 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       depositType,
       depositValue,
       minOrderSubtotal,
-      gateway,
-      apiKey,
-      apiSecret,
+      // Money is collected by Shopify checkout (draft invoice). These legacy
+      // columns are kept for schema compatibility and cleared on save.
+      gateway: "simulator",
+      apiKey: "",
+      apiSecret: "",
       autoCancelMinutes,
       metaPixelId,
       metaCapiToken,
@@ -287,7 +277,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function PartialCodPage() {
-  const { settings, deposits, shop } = useLoaderData<typeof loader>();
+  const { settings, shop } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -300,9 +290,6 @@ export default function PartialCodPage() {
   const [minOrderSubtotal, setMinOrderSubtotal] = useState<string>(
     settings.minOrderSubtotal > 0 ? settings.minOrderSubtotal.toString() : "0"
   );
-  const [gateway, setGateway] = useState<string>(settings.gateway || "simulator");
-  const [apiKey, setApiKey] = useState<string>(settings.apiKey || "");
-  const [apiSecret, setApiSecret] = useState<string>(settings.apiSecret || "");
   const [autoCancelMinutes, setAutoCancelMinutes] = useState<string>(
     settings.autoCancelMinutes ? settings.autoCancelMinutes.toString() : "30"
   );
@@ -372,9 +359,6 @@ export default function PartialCodPage() {
     fd.append("depositType", depositType);
     fd.append("depositValue", depositValue);
     fd.append("minOrderSubtotal", minOrderSubtotal);
-    fd.append("gateway", gateway);
-    fd.append("apiKey", apiKey);
-    fd.append("apiSecret", apiSecret);
     fd.append("autoCancelMinutes", autoCancelMinutes);
     fd.append("metaPixelId", metaPixelId);
     fd.append("metaCapiToken", metaCapiToken);
@@ -397,9 +381,6 @@ export default function PartialCodPage() {
     depositType,
     depositValue,
     minOrderSubtotal,
-    gateway,
-    apiKey,
-    apiSecret,
     autoCancelMinutes,
     metaPixelId,
     metaCapiToken,
@@ -574,66 +555,6 @@ export default function PartialCodPage() {
                       helpText="Orders below this amount will not require an advance deposit (set 0 to apply to all orders)."
                     />
                   </FormLayout>
-                </BlockStack>
-              </Card>
-
-              {/* Payment Gateway Configuration */}
-              <Card>
-                <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">
-                      Payment Gateway Integration
-                    </Text>
-                    {gateway === "simulator" && (
-                      <Badge tone="info">SANDBOX TEST MODE</Badge>
-                    )}
-                  </InlineStack>
-
-                  <Select
-                    label="Select Payment Processor"
-                    options={[
-                      {
-                        label: "Built-in Test Simulator (No account required, for testing)",
-                        value: "simulator",
-                      },
-                      {
-                        label: "Razorpay (UPI, GPay, PhonePe, Cards - India)",
-                        value: "razorpay",
-                      },
-                      {
-                        label: "Stripe (Cards, Apple Pay, Google Pay - Global)",
-                        value: "stripe",
-                      },
-                    ]}
-                    value={gateway}
-                    onChange={(val) => setGateway(val)}
-                  />
-
-                  {gateway === "simulator" ? (
-                    <Banner tone="info" title="Test Simulator Active">
-                      <Text as="p">
-                        In Simulator mode, customers (and you) can click &quot;Simulate Instant Payment&quot; on the Thank You page to test the order update flow without any real money or gateway credentials!
-                      </Text>
-                    </Banner>
-                  ) : (
-                    <FormLayout>
-                      <TextField
-                        label={gateway === "razorpay" ? "Razorpay Key ID" : "Stripe Publishable Key"}
-                        value={apiKey}
-                        onChange={(val) => setApiKey(val)}
-                        autoComplete="off"
-                        placeholder={gateway === "razorpay" ? "rzp_test_..." : "pk_test_..."}
-                      />
-                      <TextField
-                        label={gateway === "razorpay" ? "Razorpay Key Secret" : "Stripe Secret Key"}
-                        type="password"
-                        value={apiSecret}
-                        onChange={(val) => setApiSecret(val)}
-                        autoComplete="off"
-                        placeholder="••••••••••••••••••••••••••••"
-                      />
-                    </FormLayout>
-                  )}
                 </BlockStack>
               </Card>
 
@@ -1059,115 +980,10 @@ export default function PartialCodPage() {
                 </BlockStack>
               </Card>
 
-              {/* How it Works Guide */}
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    How Partial COD Works
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    1. Customer chooses &quot;Partial COD&quot; at checkout.
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    2. On the Thank You page, they pay the advance deposit (₹{simulation.deposit}) via UPI or Card.
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    3. Our app marks ₹{simulation.deposit} as Paid in Shopify and leaves ₹{simulation.balance} as Outstanding COD balance.
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    4. Courier logistics (Shiprocket, Delhivery) reads the balance and collects ₹{simulation.balance} at the door.
-                  </Text>
-                </BlockStack>
-              </Card>
-
-              {/* Thank You Page Integration Guide */}
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    Thank You Page Prompt
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    To display the deposit button on the customer's order confirmation page, copy this snippet to <strong>Shopify Settings &gt; Checkout &gt; Order status page (Additional scripts)</strong>:
-                  </Text>
-                  <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-                    <Text as="p" variant="bodyXs">
-                      {`{% if order.financial_status == 'pending' %}`}
-                      <br />
-                      {`<div style="margin:20px 0;padding:20px;background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;text-align:center;">`}
-                      <br />
-                      {`  <h3 style="color:#15803d;margin-top:0;">⚡ Action Required: Confirm COD Order</h3>`}
-                      <br />
-                      {`  <p style="color:#374151;">Pay your advance deposit online to confirm shipment.</p>`}
-                      <br />
-                      {`  <a href="https://capped-discount-app.onrender.com/pay/{{ order.id }}?shop={{ shop.permanent_domain }}" style="display:inline-block;background:#16a34a;color:#fff;padding:12px 24px;border-radius:8px;font-weight:bold;text-decoration:none;">👉 Pay Advance Deposit Now</a>`}
-                      <br />
-                      {`</div>`}
-                      <br />
-                      {`{% endif %}`}
-                    </Text>
-                  </Box>
-                </BlockStack>
-              </Card>
             </BlockStack>
           </Layout.Section>
         </Layout>
 
-        {/* Recent Transactions Table */}
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">
-                  Recent Deposit Transactions
-                </Text>
-                {deposits.length === 0 ? (
-                  <Box padding="400">
-                    <Text as="p" tone="subdued" alignment="center">
-                      No Partial COD deposit transactions recorded yet. Test an order on your development store!
-                    </Text>
-                  </Box>
-                ) : (
-                  <IndexTable
-                    resourceName={{ singular: "deposit", plural: "deposits" }}
-                    itemCount={deposits.length}
-                    headings={[
-                      { title: "Order" },
-                      { title: "Total" },
-                      { title: "Deposit (Paid)" },
-                      { title: "COD Balance" },
-                      { title: "Status" },
-                      { title: "Gateway" },
-                      { title: "Date" },
-                    ]}
-                    selectable={false}
-                  >
-                    {deposits.map((d, index) => (
-                      <IndexTable.Row id={d.id} key={d.id} position={index}>
-                        <IndexTable.Cell>
-                          <Text as="span" fontWeight="bold">{d.orderName}</Text>
-                        </IndexTable.Cell>
-                        <IndexTable.Cell>₹{d.totalAmount.toLocaleString()}</IndexTable.Cell>
-                        <IndexTable.Cell>
-                          <Text as="span" tone="success">₹{d.depositAmount.toLocaleString()}</Text>
-                        </IndexTable.Cell>
-                        <IndexTable.Cell>
-                          <Text as="span" tone="caution">₹{d.remainingBalance.toLocaleString()}</Text>
-                        </IndexTable.Cell>
-                        <IndexTable.Cell>
-                          <Badge tone={d.status === "paid" ? "success" : d.status === "pending" ? "warning" : "critical"}>
-                            {d.status.toUpperCase()}
-                          </Badge>
-                        </IndexTable.Cell>
-                        <IndexTable.Cell>{d.gateway.toUpperCase()}</IndexTable.Cell>
-                        <IndexTable.Cell>{new Date(d.createdAt).toLocaleDateString()}</IndexTable.Cell>
-                      </IndexTable.Row>
-                    ))}
-                  </IndexTable>
-                )}
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
       </BlockStack>
     </Page>
   );

@@ -12,7 +12,7 @@ import {
   normalizeQuantity,
   toVariantGid,
 } from "../app/services/pricing.server";
-import { simulatorAllowed } from "../app/services/gateways";
+import { simulatorAllowed } from "../app/services/simulator";
 import { formatDatabaseUrl, normalizeShopDomain } from "../app/db.server";
 
 const percentCoupon: CouponRule = {
