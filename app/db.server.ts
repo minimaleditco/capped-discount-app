@@ -681,6 +681,45 @@ export async function pruneExpiredOtpSessions(): Promise<number> {
   }
 }
 
+/**
+ * Records an app action that touched customer data. The log stores the shop,
+ * action and time only — never names, emails or phone numbers.
+ */
+export async function logAudit(
+  shop: string,
+  action: string,
+  detail?: string
+): Promise<void> {
+  const cleanShop = normalizeShopDomain(shop);
+  if (!cleanShop) return;
+
+  try {
+    await prisma.auditLog.create({
+      data: {
+        shop: cleanShop,
+        action: action.slice(0, 80),
+        detail: detail ? detail.slice(0, 200) : null,
+      },
+    });
+  } catch (err) {
+    console.warn("[DB logAudit]:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** Keeps the access log bounded (default 90 days). */
+export async function pruneAuditLogs(days = 90): Promise<number> {
+  try {
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const res = await prisma.auditLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return res.count;
+  } catch (err) {
+    console.warn("[DB pruneAuditLogs]:", err instanceof Error ? err.message : err);
+    return 0;
+  }
+}
+
 // ============================================================================
 // Phase 2: Dynamic Deposit Rules
 // ============================================================================

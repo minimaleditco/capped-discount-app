@@ -17,6 +17,7 @@ describes how the app handles personal data.
 | Delivery pincode, deposit/balance, rule label | Shopify order tags/notes (not the app DB) | Merchant support and cash collection | Merchant's Shopify retention |
 | Customer name/email/phone/city/zip | Not stored; read from Shopify and SHA-256 hashed for Meta CAPI | Merchant's own ad attribution | Not retained by the app |
 | Server logs | Render | Diagnostics and abuse prevention | 7 days (provider default); no OTP codes or contact details |
+| Access log | Neon `AuditLog` | Record app actions that touch customer data (shop, action, time only) | 90 days |
 
 The app does not store customer profiles, addresses, order history, or payment
 card data.
@@ -52,6 +53,10 @@ card data.
   messages.
 - They never contain OTP codes, phone numbers, emails, names or addresses.
 - Access to provider dashboards is limited to the owner and protected by 2FA.
+- **Access log:** every app action that touches customer data is recorded in
+  `AuditLog` with the shop, action and timestamp — never the customer fields.
+  Events: order list view, refund, OTP send/verify, draft checkout creation and
+  Meta CAPI dispatch. Entries older than 90 days are deleted automatically.
 
 ## 6. Data loss prevention
 

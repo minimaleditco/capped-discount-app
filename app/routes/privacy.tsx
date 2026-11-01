@@ -153,6 +153,12 @@ export default function PrivacyPolicy() {
           App, secrets are stored in environment variables, and logs do not
           contain OTP codes or customer contact details.
         </p>
+        <p>
+          Actions inside the App that touch customer data (viewing orders,
+          issuing a refund, sending or verifying a code, creating a checkout or
+          dispatching a Meta event) are recorded in an access log containing the
+          store, action and time only. Access-log entries are kept for 90 days.
+        </p>
       </section>
 
       <section style={section}>

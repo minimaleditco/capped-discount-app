@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getPartialCodSettings } from "../db.server";
+import { getPartialCodSettings, logAudit } from "../db.server";
 
 export interface OrderCapiData {
   orderId: string | number;
@@ -198,6 +198,7 @@ export async function sendToMetaCAPI(
     console.log(
       `[Meta CAPI Success] Event received: ${responseData.events_received}, FBTrace: ${responseData.fbtrace_id}`
     );
+    await logAudit(shop, "meta_capi.purchase", String(orderData.orderId));
 
     return {
       success: true,

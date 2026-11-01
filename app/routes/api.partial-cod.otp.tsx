@@ -5,6 +5,7 @@ import {
   createOtpSession,
   verifyOtpSession,
   pruneExpiredOtpSessions,
+  logAudit,
 } from "../db.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
@@ -175,6 +176,8 @@ async function handleOtpRequest(request: Request) {
           );
         }
 
+        await logAudit(shop, "otp.send", "whatsapp");
+
         return json(
           {
             success: true,
@@ -202,6 +205,8 @@ async function handleOtpRequest(request: Request) {
           { status: 502, headers: corsHeaders }
         );
       }
+
+      await logAudit(shop, "otp.send", "sms");
 
       return json(
         {
@@ -231,6 +236,7 @@ async function handleOtpRequest(request: Request) {
 
       const verifyResult = await verifyOtpSession(shop, phone, otp);
       if (!verifyResult.valid) {
+        await logAudit(shop, "otp.verify", "failed");
         return json(
           {
             success: false,
@@ -240,6 +246,8 @@ async function handleOtpRequest(request: Request) {
           { status: 400, headers: corsHeaders }
         );
       }
+
+      await logAudit(shop, "otp.verify", "ok");
 
       return json(
         {

@@ -5,7 +5,7 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import { pruneExpiredOtpSessions } from "../db.server";
+import { pruneAuditLogs, pruneExpiredOtpSessions } from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -13,6 +13,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Cheap retention housekeeping: remove OTP rows that expired since the last
   // visit, even if no new code was requested.
   void pruneExpiredOtpSessions();
+  void pruneAuditLogs(90);
 
   // Scope verification is advisory only.
   //

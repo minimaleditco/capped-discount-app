@@ -21,6 +21,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { logAudit } from "../db.server";
 import {
   getPartialCodOrders,
   cancelAndRefundDeposit,
@@ -41,6 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop || "unknown";
 
+  await logAudit(shop, "orders.view", "list");
   const orders = await getPartialCodOrders(admin);
 
   return json<LoaderData>({
@@ -77,6 +79,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     notifyCustomer: true,
   });
 
+  await logAudit(shop, "order.refund", result.success ? "ok" : "failed");
   return json<ActionData>({ result });
 };
 

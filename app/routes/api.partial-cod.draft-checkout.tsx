@@ -5,6 +5,7 @@ import {
   getPartialCodSettings,
   normalizeShopDomain,
   validateVerificationToken,
+  logAudit,
 } from "../db.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
 import { fetchLiveDiscounts, evaluateCoupon, computeAutoDiscountAmount } from "../services/coupons.server";
@@ -386,6 +387,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const draftOrder = resJson.data?.draftOrderCreate?.draftOrder;
+    if (draftOrder?.invoiceUrl) {
+      await logAudit(shop, "draft_checkout.create", draftOrder.name || "");
+    }
     if (!draftOrder?.invoiceUrl) {
       return json(
         { success: false, error: "Failed to generate Shopify checkout URL." },
