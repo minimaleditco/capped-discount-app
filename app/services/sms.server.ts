@@ -41,8 +41,9 @@ export async function sendSmsOtp(
   if (provider === "simulator" || !settings.smsApiKey) {
     console.log("======================================================");
     console.log(`📲 [SMS SIMULATOR] Dispatching OTP to ${e164}`);
-    console.log(`🔑 Verification OTP: ${otp}`);
-    console.log(`💬 Message: "Your verification code for Partial COD order is ${otp}. Valid for 5 minutes."`);
+    // Never write the code itself to logs: logs are retained by the host and
+    // are not an approved place for authentication secrets.
+    console.log("🔑 Verification OTP generated (code withheld from logs).");
     console.log("======================================================");
 
     return {

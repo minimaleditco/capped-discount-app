@@ -4,6 +4,7 @@ import {
   getPartialCodSettings,
   createOtpSession,
   verifyOtpSession,
+  pruneExpiredOtpSessions,
 } from "../db.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
@@ -49,6 +50,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 async function handleOtpRequest(request: Request) {
   try {
+    // Retention: every OTP request clears rows whose code can no longer be
+    // used, so phone numbers do not accumulate in the database.
+    await pruneExpiredOtpSessions();
+
     let body: any = {};
     if (request.method === "POST") {
       try {

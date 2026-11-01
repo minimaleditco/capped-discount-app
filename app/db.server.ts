@@ -618,6 +618,69 @@ export async function deleteSessionsByShop(shop: string): Promise<number> {
   }
 }
 
+/**
+ * Deletes every row the app holds for a shop. Used by the mandatory
+ * `shop/redact` webhook so nothing survives uninstall + 48 hours.
+ */
+export async function deleteShopData(shop: string): Promise<boolean> {
+  const cleanShop = normalizeShopDomain(shop);
+  if (!cleanShop) return false;
+
+  try {
+    await prisma.$transaction([
+      prisma.otpSession.deleteMany({ where: { shop: cleanShop } }),
+      prisma.partialCodDeposit.deleteMany({ where: { shop: cleanShop } }),
+      prisma.depositRule.deleteMany({ where: { shop: cleanShop } }),
+      prisma.discountSavings.deleteMany({ where: { shop: cleanShop } }),
+      prisma.partialCodSettings.deleteMany({ where: { shop: cleanShop } }),
+      prisma.session.deleteMany({ where: { shop: cleanShop } }),
+    ]);
+    return true;
+  } catch (err) {
+    console.warn(`[DB deleteShopData] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+/**
+ * Deletes the transient OTP record for one customer phone. Used by the
+ * mandatory `customers/redact` webhook.
+ */
+export async function deleteCustomerOtpData(shop: string, phone?: string | null): Promise<number> {
+  const cleanShop = normalizeShopDomain(shop);
+  const digits = String(phone || "").replace(/[^0-9]/g, "");
+  if (!cleanShop || !digits) return 0;
+
+  const last10 = digits.slice(-10);
+  const candidates = digits === last10 ? [digits] : [digits, last10];
+
+  try {
+    const res = await prisma.otpSession.deleteMany({
+      where: { shop: cleanShop, phone: { in: candidates } },
+    });
+    await prisma.partialCodDeposit.deleteMany({
+      where: { shop: cleanShop, customerPhone: { in: candidates } },
+    });
+    return res.count;
+  } catch (err) {
+    console.warn(`[DB deleteCustomerOtpData] ${cleanShop}:`, err instanceof Error ? err.message : err);
+    return 0;
+  }
+}
+
+/** Removes OTP rows that can no longer be used. Safe to call often. */
+export async function pruneExpiredOtpSessions(): Promise<number> {
+  try {
+    const res = await prisma.otpSession.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    return res.count;
+  } catch (err) {
+    console.warn("[DB pruneExpiredOtpSessions]:", err instanceof Error ? err.message : err);
+    return 0;
+  }
+}
+
 // ============================================================================
 // Phase 2: Dynamic Deposit Rules
 // ============================================================================

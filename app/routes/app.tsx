@@ -5,9 +5,14 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { pruneExpiredOtpSessions } from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
+
+  // Cheap retention housekeeping: remove OTP rows that expired since the last
+  // visit, even if no new code was requested.
+  void pruneExpiredOtpSessions();
 
   // Scope verification is advisory only.
   //

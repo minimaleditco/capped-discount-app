@@ -1,6 +1,11 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { deleteSessionsByShop } from "../db.server";
+import {
+  deleteCustomerOtpData,
+  deleteSessionsByShop,
+  deleteShopData,
+  pruneExpiredOtpSessions,
+} from "../db.server";
 import { sendToMetaCAPI } from "../services/meta-capi.server";
 import { sendDunningReminder } from "../services/whatsapp.server";
 
@@ -21,21 +26,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       break;
 
     case "CUSTOMERS_DATA_REQUEST":
-      // A customer requested their data from this shop.
-      // This app stores only discount configurations, no customer PII.
+      // The app holds no persistent customer profile. The only customer-level
+      // record is a short-lived OTP code; expired rows are pruned here.
       console.log(`Customer data request received for ${shop}`);
+      try {
+        await pruneExpiredOtpSessions();
+      } catch (error) {
+        console.error(`Failed to prune OTP data for ${shop}:`, error);
+      }
       break;
 
-    case "CUSTOMERS_REDACT":
-      // A customer requested deletion of their data.
-      console.log(`Customer redact request received for ${shop}`);
+    case "CUSTOMERS_REDACT": {
+      // Delete the transient OTP/deposit record for this customer's phone.
+      const customerPhone =
+        (payload as any)?.customer?.phone || (payload as any)?.phone || null;
+      try {
+        const removed = await deleteCustomerOtpData(shop, customerPhone);
+        console.log(`Customer redact request processed for ${shop} (records removed: ${removed}).`);
+      } catch (error) {
+        console.error(`Failed to redact customer data for ${shop}:`, error);
+      }
       break;
+    }
 
     case "SHOP_REDACT":
       // 48 hours after uninstall, Shopify requests all store data to be deleted.
       try {
-        console.log(`Shop redact request received for ${shop}. Purging store sessions.`);
-        await deleteSessionsByShop(shop);
+        console.log(`Shop redact request received for ${shop}. Purging all store data.`);
+        await deleteShopData(shop);
       } catch (error) {
         console.error(`Failed to purge shop data for ${shop}:`, error);
       }
