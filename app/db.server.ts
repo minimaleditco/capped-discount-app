@@ -824,6 +824,19 @@ export async function createOtpSession(
 
   memoryOtpSessions.set(token, record);
 
+  // Retention: an OTP is only useful until it expires. Delete old codes so
+  // phone numbers are not kept longer than necessary (protected customer data
+  // level 1 requirement). Failure here must never block sending a new code.
+  const nowMs = Date.now();
+  for (const [key, rec] of memoryOtpSessions) {
+    if (rec.expiresAt < nowMs) memoryOtpSessions.delete(key);
+  }
+  try {
+    await prisma.otpSession.deleteMany({ where: { expiresAt: { lt: new Date(nowMs) } } });
+  } catch (err) {
+    console.warn("[DB OTP retention cleanup]:", err instanceof Error ? err.message : err);
+  }
+
   try {
     await prisma.otpSession.create({
       data: {

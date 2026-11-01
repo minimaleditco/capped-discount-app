@@ -5,26 +5,9 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import {
-  describeError,
-  describeRequest,
-  recordDiagnostic,
-} from "../services/diagnostics.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const requestInfo = describeRequest(request);
-  recordDiagnostic({ ...requestInfo, stage: "app:loader" });
-
-  const { admin, session } = await authenticate.admin(request).catch((error) => {
-    recordDiagnostic({
-      ...requestInfo,
-      stage: "app:error",
-      detail: `authenticate: ${describeError(error)}`,
-    });
-    throw error;
-  });
-
-  recordDiagnostic({ ...requestInfo, stage: "app:ok", detail: `session=${Boolean(session)}` });
+  const { admin } = await authenticate.admin(request);
 
   // Scope verification is advisory only.
   //
@@ -51,7 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (activeHandles.length > 0 && !activeHandles.includes("write_discounts")) {
       console.warn(
-        `[Scope Check] Store ${session?.shop} token missing write_discounts (has: ${activeHandles.join(",")}).`
+        `[Scope Check] Token missing write_discounts (has: ${activeHandles.join(",")}).`
       );
     }
   } catch (error: any) {
@@ -63,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  return json({ apiKey: process.env.SHOPIFY_API_KEY || "2c334cb8162a93e88de39958c51ff783" });
+  return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 
 export default function AppLayout() {
