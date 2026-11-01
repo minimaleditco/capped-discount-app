@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate, Link } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -1044,6 +1044,19 @@ export default function AppHomePage() {
             </div>
           </BlockStack>
         </Card>
+
+        <Box paddingBlockEnd="400">
+          <InlineStack align="center">
+            <Link
+              to="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: "13px", color: "#6D7175" }}
+            >
+              Privacy Policy — what data the app processes and why
+            </Link>
+          </InlineStack>
+        </Box>
       </BlockStack>
     </Page>
   );
