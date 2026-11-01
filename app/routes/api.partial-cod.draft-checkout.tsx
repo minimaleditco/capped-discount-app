@@ -157,6 +157,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const deliveryPincode = String(body.pincode || body.shippingAddress?.zip || "")
       .replace(/[^0-9a-zA-Z]/g, "")
       .slice(0, 10);
+    const marketingConsent =
+      body.marketingConsent === true
+        ? "granted"
+        : body.marketingConsent === false
+        ? "denied"
+        : "unknown";
 
     if (!isPrepaid && settings.whatsappEnabled) {
       const isVerified = await validateVerificationToken(shop, customerPhone, otpToken);
@@ -250,6 +256,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         orderContextAttributes.push({ key: "Delivery Pincode", value: deliveryPincode });
       }
     }
+
+    orderContextAttributes.push({ key: "Marketing Consent", value: marketingConsent });
 
     const lineItemsForDraft = lines.map((line, index) => {
       const lineShare = shares[index] ?? 0;

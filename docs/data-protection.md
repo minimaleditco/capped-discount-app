@@ -30,7 +30,16 @@ card data.
 - No analytics SDKs, tracking pixels, or third-party advertising code runs in
   the app.
 
-## 3. Encryption
+## 3. Consent
+
+The storefront widget reads Shopify's Customer Privacy API
+(`marketingAllowed` and `saleOfDataAllowed`). The decision is recorded on the
+draft order as a line-item attribute (`Marketing Consent: granted / denied /
+unknown`). The `orders/create` webhook skips Meta Conversions API when consent
+is denied and tags the order `Meta CAPI Skipped: Consent`. Phone verification
+is performed to fulfil the order and is not used for marketing.
+
+## 4. Encryption
 
 - In transit: HTTPS/TLS for Shopify, the admin UI, the storefront API and the
   database connection (`sslmode=require`).

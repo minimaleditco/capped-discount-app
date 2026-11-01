@@ -366,6 +366,8 @@
   }
 
   function init() {
+    ensureConsentApi();
+
     ensureModalExists();
     bindModalListeners();
 
@@ -1402,6 +1404,45 @@
     return input ? input.value.replace(/[^0-9a-zA-Z]/g, "").slice(0, 10) : "";
   }
 
+  // Shopify's Customer Privacy API. Loaded once so the consent decision is
+  // available before the shopper opens the modal.
+  function ensureConsentApi() {
+    try {
+      if (
+        window.Shopify &&
+        typeof window.Shopify.loadFeatures === "function" &&
+        !window.Shopify.customerPrivacy
+      ) {
+        window.Shopify.loadFeatures(
+          [{ name: "consent-tracking-api", version: "0.1" }],
+          function () {}
+        );
+      }
+    } catch (e) {
+      console.warn("[Consent API] unavailable:", e);
+    }
+  }
+
+  function readMarketingConsent() {
+    try {
+      const privacy = window.Shopify && window.Shopify.customerPrivacy;
+      if (!privacy) return undefined;
+      const marketing =
+        typeof privacy.marketingAllowed === "function"
+          ? privacy.marketingAllowed()
+          : undefined;
+      const sale =
+        typeof privacy.saleOfDataAllowed === "function"
+          ? privacy.saleOfDataAllowed()
+          : undefined;
+      if (marketing === false || sale === false) return false;
+      if (marketing === true && sale !== false) return true;
+      return undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   function validatePincode(isPrepaid) {
     if (isPrepaid || !storeOffers.requiresPincode) return true;
     if (readPincode().length >= 3) {
@@ -1619,6 +1660,7 @@
           phone: phone || undefined,
           otpToken: otpToken || undefined,
           pincode: readPincode() || undefined,
+          marketingConsent: readMarketingConsent(),
           couponCode: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : undefined,
           couponDiscount: activeCoupon && !activeCoupon.isAuto ? activeCoupon.discountAmount : 0,
         };
@@ -1637,6 +1679,7 @@
           phone: phone || undefined,
           otpToken: otpToken || undefined,
           pincode: readPincode() || undefined,
+          marketingConsent: readMarketingConsent(),
           couponCode: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : undefined,
           couponDiscount: activeCoupon && !activeCoupon.isAuto ? activeCoupon.discountAmount : 0,
         };

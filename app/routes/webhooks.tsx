@@ -129,12 +129,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             `(Deposit: ${depositPaid}, Doorstep Balance: ${doorstepBalance})`
           );
 
-          // 2. Dispatch to Meta Conversions API (CAPI)
+          // 2. Dispatch to Meta Conversions API (CAPI), unless the customer
+          //    denied marketing or sale-of-data consent on the storefront.
+          const lineItemProperties: any[] = Array.isArray((payload as any)?.line_items)
+            ? (payload as any).line_items.flatMap((it: any) =>
+                Array.isArray(it?.properties) ? it.properties : []
+              )
+            : [];
+          const consentValue = String(
+            lineItemProperties.find((p: any) => p?.name === "Marketing Consent")?.value ||
+              "unknown"
+          ).toLowerCase();
+          const consentDenied = consentValue === "denied";
+
           const customer = (payload as any)?.customer;
           const shippingAddress =
             (payload as any)?.shipping_address || (payload as any)?.billing_address;
 
-          const capiResult = await sendToMetaCAPI(shop, {
+          const capiResult = consentDenied
+            ? {
+                success: false,
+                skipped: true,
+                reason: "Customer denied marketing consent.",
+              }
+            : await sendToMetaCAPI(shop, {
             orderId: rawOrderId,
             orderName: (payload as any)?.name,
             currency: (payload as any)?.currency || "INR",
@@ -170,6 +188,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             const tagsToAdd = ["Partially Paid", "Partial COD"];
             if (capiResult.success) {
               tagsToAdd.push("Meta CAPI Reported");
+            } else if (consentDenied) {
+              tagsToAdd.push("Meta CAPI Skipped: Consent");
             }
             await admin.graphql(
               `#graphql

@@ -95,6 +95,9 @@ export default function PrivacyPolicy() {
           Meta tracking is off unless the merchant enters their own Pixel ID and
           access token. The merchant is responsible for obtaining any consent
           required in their jurisdiction for marketing and conversion tracking.
+          Where the storefront exposes Shopify’s Customer Privacy API, the App
+          sends Meta Conversions API events only when marketing and
+          sale-of-data consent are granted; otherwise the event is skipped.
         </p>
       </section>
 
