@@ -2,7 +2,7 @@
 /**
  * Minifies the storefront widget.
  *
- * The readable source lives in `extensions/partial-cod-theme/src/`. The Shopify
+ * The readable source lives in `theme-src/`. The Shopify
  * CLI publishes whatever is in `assets/`, so `assets/fast-checkout.js` is a
  * generated file. Run this before `shopify app deploy` / `npm run deploy`.
  *
@@ -15,7 +15,7 @@ import path from "node:path";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 await build({
-  entryPoints: [path.join(root, "extensions/partial-cod-theme/src/fast-checkout.source.js")],
+  entryPoints: [path.join(root, "theme-src/fast-checkout.source.js")],
   outfile: path.join(root, "extensions/partial-cod-theme/assets/fast-checkout.js"),
   bundle: false,
   minify: true,
