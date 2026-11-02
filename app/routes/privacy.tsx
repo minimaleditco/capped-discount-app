@@ -2,11 +2,11 @@ import type { MetaFunction } from "@remix-run/node";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "Privacy Policy | Capped Discount & COD Fee" },
+    { title: "Privacy Policy | Partio" },
     {
       name: "description",
       content:
-        "How Capped Discount & COD Fee processes merchant and customer data.",
+        "How Partio processes merchant and customer data.",
     },
   ];
 };
@@ -35,7 +35,7 @@ export default function PrivacyPolicy() {
       <section style={section}>
         <h2 style={h2}>1. About this policy</h2>
         <p>
-          Capped Discount &amp; COD Fee (“the App”) is a Shopify app that
+          Partio (“the App”) is a Shopify app that
           provides capped percentage discounts, Partial Cash on Delivery
           deposits, risk-based deposit rules, phone verification and optional
           Meta conversion tracking. This policy explains what data the App

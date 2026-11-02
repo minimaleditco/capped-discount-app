@@ -26,11 +26,11 @@ export default function AuthLogin() {
           <Card>
             <BlockStack gap="300">
               <Text variant="headingLg" as="h1">
-                Capped Discount &amp; COD Fee
+                Partio
               </Text>
               <Text as="p">
                 This app runs inside Shopify Admin. Open it from{" "}
-                <strong>Apps → Capped Discount &amp; COD Fee</strong> in your store
+                <strong>Apps → Partio</strong> in your store
                 admin.
               </Text>
               <Text as="p" tone="subdued">

@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-name = "Capped Discount & COD Fee"
+name = "Partio"
 client_id = "2c334cb8162a93e88de39958c51ff783"
 application_url = "https://capped-discount-app.onrender.com"
 embedded = true

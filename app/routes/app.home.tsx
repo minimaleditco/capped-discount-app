@@ -118,8 +118,8 @@ export default function AppHomePage() {
 
   return (
     <Page
-      title="Capped Discount & Partial COD Suite"
-      subtitle="The all-in-one revenue acceleration, margin defense, and RTO reduction engine for Shopify."
+      title="Partio"
+      subtitle="Capped discounts, Partial COD deposits and OTP verification — built to protect margins and cut RTO."
       compactTitle
       fullWidth
     >

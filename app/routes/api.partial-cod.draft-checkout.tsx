@@ -59,7 +59,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         {
           success: false,
           error:
-            "Store authorization required: Please open the 'Capped Discount & COD Fee' app in your Shopify Admin once to authenticate.",
+            "Store authorization required: Please open the 'Partio' app in your Shopify Admin once to authenticate.",
         },
         { status: 403, headers: corsHeaders }
       );
