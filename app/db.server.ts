@@ -294,6 +294,7 @@ export interface PartialCodSettings {
   whatsappApiKey?: string;
   whatsappApiUrl?: string;
   whatsappSender?: string;
+  otpChannel?: "sms" | "whatsapp";
   prepaidDiscountEnabled?: boolean;
   prepaidDiscountType?: "fixed" | "percentage";
   prepaidDiscountValue?: number;
@@ -345,6 +346,7 @@ const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
   whatsappApiKey: "",
   whatsappApiUrl: "",
   whatsappSender: "",
+  otpChannel: "sms",
   prepaidDiscountEnabled: true,
   prepaidDiscountType: "percentage",
   prepaidDiscountValue: 5,
@@ -386,6 +388,7 @@ export async function getPartialCodSettings(shop: string): Promise<PartialCodSet
       whatsappApiKey: row.whatsappApiKey || "",
       whatsappApiUrl: row.whatsappApiUrl || "",
       whatsappSender: row.whatsappSender || "",
+      otpChannel: (row.otpChannel as "sms" | "whatsapp") || "sms",
       prepaidDiscountEnabled: (row as any).prepaidDiscountEnabled ?? true,
       prepaidDiscountType: ((row as any).prepaidDiscountType as "fixed" | "percentage") || "percentage",
       prepaidDiscountValue: Number((row as any).prepaidDiscountValue ?? 5),
@@ -426,6 +429,7 @@ export async function savePartialCodSettings(settings: PartialCodSettings): Prom
         whatsappApiKey: settings.whatsappApiKey || "",
         whatsappApiUrl: settings.whatsappApiUrl || "",
         whatsappSender: settings.whatsappSender || "",
+        otpChannel: settings.otpChannel || "sms",
         prepaidDiscountEnabled: settings.prepaidDiscountEnabled ?? true,
         prepaidDiscountType: settings.prepaidDiscountType || "percentage",
         prepaidDiscountValue: settings.prepaidDiscountValue ?? 5,
@@ -451,6 +455,7 @@ export async function savePartialCodSettings(settings: PartialCodSettings): Prom
         whatsappApiKey: settings.whatsappApiKey || "",
         whatsappApiUrl: settings.whatsappApiUrl || "",
         whatsappSender: settings.whatsappSender || "",
+        otpChannel: settings.otpChannel || "sms",
         prepaidDiscountEnabled: settings.prepaidDiscountEnabled ?? true,
         prepaidDiscountType: settings.prepaidDiscountType || "percentage",
         prepaidDiscountValue: settings.prepaidDiscountValue ?? 5,

@@ -100,3 +100,15 @@ export function evaluateSendRateLimit(
 
   return { allowed: true, retryAfterSeconds: 0 };
 }
+
+/**
+ * The OTP delivery channel is a store setting, not a client choice. Only one
+ * channel is used per code, so a WhatsApp-configured store never also sends SMS.
+ */
+export function resolveOtpChannel(settings: {
+  otpChannel?: string | null;
+}): "sms" | "whatsapp" {
+  return String(settings.otpChannel || "").toLowerCase() === "whatsapp"
+    ? "whatsapp"
+    : "sms";
+}

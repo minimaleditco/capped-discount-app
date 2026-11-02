@@ -105,14 +105,12 @@ export default function AppHomePage() {
   const navigate = useNavigate();
 
   // Calculate setup completion progress
-  const completedSteps = [
+  const completedCoreSteps = [
     stats.discountsCount > 0,
     stats.codEnabled,
     stats.rulesCount > 0,
-    stats.whatsappEnabled,
-    stats.metaCapiEnabled,
   ].filter(Boolean).length;
-  const progressPercent = Math.round((completedSteps / 5) * 100);
+  const progressPercent = Math.round((completedCoreSteps / 3) * 100);
   const storeHandle = shop.replace(/\.myshopify\.com$/i, "");
   const themeEditorUrl = `https://admin.shopify.com/store/${storeHandle}/themes/current/editor?context=apps`;
 
@@ -315,12 +313,12 @@ export default function AppHomePage() {
                   Store Onboarding & Feature Activation
                 </Text>
                 <Text as="p" tone="subdued">
-                  Follow these 5 core steps to maximize conversion and prevent delivery rejections.
+                  Complete these 3 core steps. Phone verification and Meta CAPI are optional.
                 </Text>
               </BlockStack>
               <InlineStack gap="200" blockAlign="center">
                 <Text as="span" variant="bodyMd" fontWeight="semibold">
-                  {completedSteps} of 5 Completed
+                  {completedCoreSteps} of 3 core steps
                 </Text>
                 <Badge tone={progressPercent === 100 ? "success" : "attention"}>
                   {`${progressPercent}% SETUP`}
@@ -426,7 +424,7 @@ export default function AppHomePage() {
         {/* ================================================================= */}
         <BlockStack gap="400">
           <Text as="h2" variant="headingLg">
-            Core Features & Navigation Guide
+            Core & Optional Features
           </Text>
           <Text as="p" tone="subdued">
             Learn how each integrated component works and where to configure it.
@@ -754,9 +752,12 @@ export default function AppHomePage() {
                       <Text as="h3" variant="headingMd">
                         4. WhatsApp OTP & Cash Dunning
                       </Text>
-                      <Badge tone={stats.whatsappEnabled ? "success" : "new"}>
-                        {stats.whatsappEnabled ? "ENABLED" : "SIMULATOR READY"}
-                      </Badge>
+                      <InlineStack gap="200">
+                        <Badge tone="info">OPTIONAL</Badge>
+                        <Badge tone={stats.whatsappEnabled ? "success" : "new"}>
+                          {stats.whatsappEnabled ? "ENABLED" : "OFF"}
+                        </Badge>
+                      </InlineStack>
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
                       Verifies mobile numbers with 6-digit OTP before COD order placement. On the morning of delivery, 
@@ -822,9 +823,12 @@ export default function AppHomePage() {
                       <Text as="h3" variant="headingMd">
                         5. Meta Conversions API (CAPI)
                       </Text>
-                      <Badge tone={stats.metaCapiEnabled ? "success" : "new"}>
-                        {stats.metaCapiEnabled ? "CONNECTED" : "READY"}
-                      </Badge>
+                      <InlineStack gap="200">
+                        <Badge tone="info">OPTIONAL</Badge>
+                        <Badge tone={stats.metaCapiEnabled ? "success" : "new"}>
+                          {stats.metaCapiEnabled ? "CONNECTED" : "NOT SET"}
+                        </Badge>
+                      </InlineStack>
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
                       Standard pixel trackers only see the ₹108 online deposit, destroying Facebook Ad ROAS. 

@@ -215,6 +215,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     const smsProvider = (formData.get("smsProvider") as any) || "simulator";
     const smsApiKey = (formData.get("smsApiKey") as string) || "";
     const smsSenderId = (formData.get("smsSenderId") as string) || "";
+    const otpChannel = formData.get("otpChannel") === "whatsapp" ? "whatsapp" : "sms";
     const availableCoupons = (formData.get("availableCoupons") as string) || "[]";
 
     const errors: string[] = [];
@@ -224,8 +225,13 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
     if (depositType === "percentage" && depositValue > 90) {
       errors.push("Deposit percentage cannot exceed 90%.");
     }
-    if (whatsappEnabled && whatsappProvider !== "simulator" && !whatsappApiKey) {
-      errors.push(`WhatsApp API Key is required when using ${whatsappProvider.toUpperCase()}.`);
+    if (whatsappEnabled) {
+      if (otpChannel === "whatsapp" && whatsappProvider !== "simulator" && !whatsappApiKey) {
+        errors.push("WhatsApp API Key is required when WhatsApp is the OTP channel.");
+      }
+      if (otpChannel === "sms" && smsProvider !== "simulator" && !smsApiKey) {
+        errors.push("SMS provider key is required when SMS is the OTP channel.");
+      }
     }
 
     if (errors.length > 0) {
@@ -251,6 +257,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
       whatsappApiKey,
       whatsappApiUrl,
       whatsappSender,
+      otpChannel,
       prepaidDiscountEnabled,
       prepaidDiscountType,
       prepaidDiscountValue,
@@ -303,6 +310,9 @@ export default function PartialCodPage() {
   const [whatsappApiKey, setWhatsappApiKey] = useState<string>(settings.whatsappApiKey || "");
   const [whatsappApiUrl, setWhatsappApiUrl] = useState<string>(settings.whatsappApiUrl || "");
   const [whatsappSender, setWhatsappSender] = useState<string>(settings.whatsappSender || "");
+  const [otpChannel, setOtpChannel] = useState<"sms" | "whatsapp">(
+    (settings.otpChannel as "sms" | "whatsapp") || "sms"
+  );
   const [testPhone, setTestPhone] = useState<string>("");
 
   // Extra Prepaid Discount State
@@ -367,6 +377,7 @@ export default function PartialCodPage() {
     fd.append("whatsappApiKey", whatsappApiKey);
     fd.append("whatsappApiUrl", whatsappApiUrl);
     fd.append("whatsappSender", whatsappSender);
+    fd.append("otpChannel", otpChannel);
     fd.append("prepaidDiscountEnabled", prepaidDiscountEnabled.toString());
     fd.append("prepaidDiscountType", prepaidDiscountType);
     fd.append("prepaidDiscountValue", prepaidDiscountValue);
@@ -389,6 +400,7 @@ export default function PartialCodPage() {
     whatsappApiKey,
     whatsappApiUrl,
     whatsappSender,
+    otpChannel,
     prepaidDiscountEnabled,
     prepaidDiscountType,
     prepaidDiscountValue,
@@ -591,14 +603,17 @@ export default function PartialCodPage() {
                         Report full cart values directly to Meta to prevent ROAS degradation on Partial COD orders
                       </Text>
                     </BlockStack>
-                    <Badge tone={metaPixelId && metaCapiToken ? "success" : "attention"}>
-                      {metaPixelId && metaCapiToken ? "CONFIGURED" : "NOT SET"}
-                    </Badge>
+                    <InlineStack gap="200">
+                      <Badge tone="info">OPTIONAL</Badge>
+                      <Badge tone={metaPixelId && metaCapiToken ? "success" : "attention"}>
+                        {metaPixelId && metaCapiToken ? "CONFIGURED" : "NOT SET"}
+                      </Badge>
+                    </InlineStack>
                   </InlineStack>
 
                   <Banner tone="info">
                     <p>
-                      <strong>Why this matters:</strong> Standard browser pixels break on Draft Orders or only report the ₹100 online deposit. 
+                      <strong>Optional — the app works without this.</strong> Why it matters: Standard browser pixels break on Draft Orders or only report the ₹100 online deposit. 
                       Server-Side CAPI automatically intercepts order creation on Shopify and reports the true full cart value (Deposit + Doorstep Balance) 
                       to Meta Events Manager with SHA-256 hashed customer data for optimal Event Quality Match.
                     </p>
@@ -669,16 +684,38 @@ export default function PartialCodPage() {
                         Verify real mobile numbers via WhatsApp OTP and automate out-for-delivery courier balance reminders
                       </Text>
                     </BlockStack>
-                    <Badge tone={whatsappEnabled ? "success" : "attention"}>
-                      {whatsappEnabled ? "OTP ACTIVE" : "OTP OFF"}
-                    </Badge>
+                    <InlineStack gap="200">
+                      <Badge tone="info">OPTIONAL</Badge>
+                      <Badge tone={whatsappEnabled ? "success" : "attention"}>
+                        {whatsappEnabled ? "OTP ACTIVE" : "OTP OFF"}
+                      </Badge>
+                    </InlineStack>
                   </InlineStack>
 
+                  <Banner tone="info">
+                    <p>
+                      <strong>Optional:</strong> OTP is off by default. WhatsApp delivery
+                      requires your own Interakt or Twilio account. SMS uses the gateway
+                      further down.
+                    </p>
+                  </Banner>
+
                   <Checkbox
-                    label="Require Pre-Checkout WhatsApp OTP Verification"
+                    label="Require OTP verification for Partial COD"
                     checked={whatsappEnabled}
                     onChange={(newVal) => setWhatsappEnabled(newVal)}
-                    helpText="When enabled, buyers selecting Partial COD must verify a 6-digit OTP received on WhatsApp before draft orders are created. Eliminates ghost and fake orders."
+                    helpText="When enabled, buyers selecting Partial COD must verify a 6-digit code sent through the channel selected below. Off by default."
+                  />
+
+                  <Select
+                    label="OTP Delivery Channel"
+                    options={[
+                      { label: "SMS — carrier gateway below", value: "sms" },
+                      { label: "WhatsApp — provider in this card", value: "whatsapp" },
+                    ]}
+                    value={otpChannel}
+                    onChange={(val) => setOtpChannel(val as "sms" | "whatsapp")}
+                    helpText="Only one channel is used per code. Choose the provider you have configured."
                   />
 
                   <FormLayout>
@@ -825,10 +862,20 @@ export default function PartialCodPage() {
                         Deliver 6-digit OTP codes via direct cellular SMS to buyer phones (works seamlessly across India & globally)
                       </Text>
                     </BlockStack>
-                    <Badge tone={smsProvider === "simulator" ? "info" : "success"}>
-                      {smsProvider === "simulator" ? "SMS SIMULATOR" : smsProvider.toUpperCase() + " LIVE"}
-                    </Badge>
+                    <InlineStack gap="200">
+                      <Badge tone="info">OPTIONAL</Badge>
+                      <Badge tone={smsProvider === "simulator" ? "info" : "success"}>
+                        {smsProvider === "simulator" ? "SMS SIMULATOR" : smsProvider.toUpperCase() + " LIVE"}
+                      </Badge>
+                    </InlineStack>
                   </InlineStack>
+
+                  <Banner tone="info">
+                    <p>
+                      <strong>Optional:</strong> requires your own Fast2SMS or Twilio
+                      account. Used only when SMS is the selected OTP channel.
+                    </p>
+                  </Banner>
 
                   <FormLayout>
                     <Select

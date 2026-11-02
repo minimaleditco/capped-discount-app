@@ -9,7 +9,7 @@ import {
 } from "../db.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
-import { evaluateSendRateLimit, generateOtpCode } from "../services/otp";
+import { evaluateSendRateLimit, generateOtpCode, resolveOtpChannel } from "../services/otp";
 import { simulatorAllowed } from "../services/simulator";
 
 const corsHeaders = {
@@ -83,27 +83,33 @@ async function handleOtpRequest(request: Request) {
 
     const settings = await getPartialCodSettings(shop);
 
+    const otpChannel = resolveOtpChannel(settings);
+
     // 0. ACTION: CHECK STATUS / REQUIREMENT
     if (actionType === "check" || actionType === "status") {
       return json(
         {
           success: true,
           required: Boolean(settings.whatsappEnabled),
-          provider: settings.whatsappProvider || "simulator",
+          channel: otpChannel,
+          provider:
+            otpChannel === "whatsapp"
+              ? settings.whatsappProvider || "simulator"
+              : settings.smsProvider || "simulator",
         },
         { headers: corsHeaders }
       );
     }
 
-    // If OTP is not enabled, mark as not required
+    // If OTP is not enabled, mark as not required. No code is sent.
     if (!settings.whatsappEnabled) {
       return json(
         {
           success: true,
           required: false,
-          verified: true,
-          token: "otp_bypass_" + Date.now(),
-          message: "WhatsApp verification is optional for this store.",
+          verified: false,
+          channel: otpChannel,
+          message: "OTP verification is optional for this store.",
         },
         { headers: corsHeaders }
       );
@@ -118,7 +124,8 @@ async function handleOtpRequest(request: Request) {
 
     // 1. ACTION: SEND OTP
     if (actionType === "send") {
-      const channel = String(body.channel || "sms").toLowerCase();
+      // Server-authoritative: one channel per code. The client cannot switch it.
+      const channel = otpChannel;
       const now = Date.now();
       pruneSendLog(now);
 

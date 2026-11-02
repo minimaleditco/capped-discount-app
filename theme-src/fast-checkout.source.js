@@ -172,7 +172,7 @@
             </div>
           </div>
 
-          <!-- SMS OTP Verification Step (shadcn InputOTP) -->
+          <!-- OTP Verification Step (shadcn InputOTP) -->
           <div class="pcod-otp-step" id="pcod-otp-step" style="display: none;">
             <div class="pcod-otp-header">
               <button type="button" class="pcod-otp-back-btn" id="pcod-otp-back-btn">
@@ -182,8 +182,8 @@
                 <span>Change Payment Option</span>
               </button>
             </div>
-            <div class="pcod-otp-title">Verify Mobile via SMS</div>
-            <div class="pcod-otp-desc">To confirm your Partial COD order, please enter your mobile number. A 6-digit SMS verification code will be sent.</div>
+            <div class="pcod-otp-title">Verify Mobile</div>
+            <div class="pcod-otp-desc">To confirm your Partial COD order, please enter your mobile number. A 6-digit verification code will be sent.</div>
 
             <!-- Phone Input Step -->
             <div class="pcod-otp-phone-group" id="pcod-otp-phone-group">
@@ -191,12 +191,12 @@
                 <span class="pcod-otp-prefix">+91</span>
                 <input type="tel" id="pcod-otp-phone-input" class="pcod-otp-input" placeholder="10-digit mobile number" maxlength="10" />
               </div>
-              <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Send SMS Code →</button>
+              <button type="button" class="pcod-otp-action-btn" id="pcod-otp-send-btn">Send verification code →</button>
             </div>
 
             <!-- Code Input Step (shadcn InputOTP 6-Box Grid) -->
             <div class="pcod-otp-code-group" id="pcod-otp-code-group" style="display: none;">
-              <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit code sent to your mobile SMS inbox!</div>
+              <div class="pcod-otp-sent-text" id="pcod-otp-sent-text">✅ 6-digit verification code sent!</div>
               <div class="pcod-otp-slots-row" id="pcod-otp-slots-row">
                 <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="0" autocomplete="one-time-code" />
                 <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="1" />
@@ -206,9 +206,9 @@
                 <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pcod-otp-slot" data-slot="5" />
               </div>
               <input type="hidden" id="pcod-otp-code-input" value="" />
-              <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify SMS & Place Order →</button>
+              <button type="button" class="pcod-otp-action-btn" id="pcod-otp-verify-btn">Verify & Place Order →</button>
               <div class="pcod-otp-resend">
-                <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend SMS</button>
+                <button type="button" class="pcod-otp-resend-btn" id="pcod-otp-resend-btn">Didn't receive code? Resend code</button>
               </div>
             </div>
 
@@ -1471,7 +1471,7 @@
     const verifyBtn = $("pcod-otp-verify-btn");
     if (verifyBtn) {
       verifyBtn.disabled = false;
-      verifyBtn.textContent = "Verify SMS & Place Order →";
+      verifyBtn.textContent = "Verify & Place Order →";
     }
     // Labels contain the live amounts, so let the price renderer restore them.
     recalculateModalPrices();
@@ -1492,7 +1492,7 @@
     setOtpError("");
     if (sendBtn) {
       sendBtn.disabled = true;
-      sendBtn.textContent = "Sending SMS code...";
+      sendBtn.textContent = "Sending verification code...";
     }
 
     try {
@@ -1500,11 +1500,11 @@
       const res = await fetch(`${BACKEND_URL}/api/partial-cod/otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", shop, phone: rawPhone, channel: "sms" }),
+        body: JSON.stringify({ action: "send", shop, phone: rawPhone }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to deliver SMS OTP.");
+        throw new Error(data.error || "Failed to deliver the verification code.");
       }
 
       const phoneGroup = $("pcod-otp-phone-group");
@@ -1515,8 +1515,8 @@
       const sentText = $("pcod-otp-sent-text");
       if (sentText) {
         sentText.textContent = data.debugOtp
-          ? `✅ Simulator SMS OTP: ${data.debugOtp}`
-          : `✅ 6-digit code sent via SMS to +91 ${rawPhone}!`;
+          ? `✅ Simulator OTP: ${data.debugOtp}`
+          : `✅ 6-digit code sent to +91 ${rawPhone}!`;
       }
 
       const codeInput = $("pcod-otp-code-input");
@@ -1530,11 +1530,11 @@
       });
       if (slots.length > 0) slots[0].focus();
     } catch (err) {
-      setOtpError(err.message || "Failed to deliver SMS OTP. Please check your number.");
+      setOtpError(err.message || "Failed to deliver the verification code. Please check your number.");
     } finally {
       if (sendBtn) {
         sendBtn.disabled = false;
-        sendBtn.textContent = "Send SMS Code →";
+        sendBtn.textContent = "Send verification code →";
       }
     }
   }
@@ -1548,7 +1548,7 @@
     const otp = codeInput ? codeInput.value.trim() : "";
 
     if (!otp || otp.length < 4) {
-      setOtpError("Please enter the 6-digit SMS verification code.");
+      setOtpError("Please enter the 6-digit verification code.");
       return;
     }
 
@@ -1567,7 +1567,7 @@
       });
       const data = await res.json();
       if (!res.ok || !data.success || !data.verified) {
-        throw new Error(data.error || "Invalid SMS verification code. Please try again.");
+        throw new Error(data.error || "Invalid verification code. Please try again.");
       }
 
       verifiedPhone = phone;
@@ -1579,7 +1579,7 @@
       setOtpError(err.message || "Verification failed. Please re-enter the code.");
       if (verifyBtn) {
         verifyBtn.disabled = false;
-        verifyBtn.textContent = "Verify SMS & Place Order →";
+        verifyBtn.textContent = "Verify & Place Order →";
       }
     }
   }

@@ -49,6 +49,7 @@ model PartialCodSettings {
   whatsappApiKey    String?  @default("")
   whatsappApiUrl         String?  @default("")
   whatsappSender         String?  @default("")
+  otpChannel             String   @default("sms")
   prepaidDiscountEnabled Boolean  @default(true)
   prepaidDiscountType    String   @default("percentage")
   prepaidDiscountValue   Float    @default(5)

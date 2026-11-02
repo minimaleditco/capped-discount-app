@@ -14,6 +14,7 @@ import {
   OTP_SEND_WINDOW_MS,
   OTP_TTL_MS,
   OTP_VERIFIED_TTL_MS,
+  resolveOtpChannel,
 } from "../app/services/otp";
 
 const root = process.cwd();
@@ -139,5 +140,19 @@ describe("OTP hardening: source guards", () => {
 
   it("the OTP route does not use Math.random for codes or tokens", () => {
     expect(read("app/routes/api.partial-cod.otp.tsx")).not.toContain("Math.random");
+  });
+});
+
+describe("OTP channel selection", () => {
+  it("defaults to SMS", () => {
+    expect(resolveOtpChannel({})).toBe("sms");
+    expect(resolveOtpChannel({ otpChannel: "" })).toBe("sms");
+    expect(resolveOtpChannel({ otpChannel: "SMS" })).toBe("sms");
+  });
+
+  it("uses WhatsApp only when explicitly selected", () => {
+    expect(resolveOtpChannel({ otpChannel: "whatsapp" })).toBe("whatsapp");
+    expect(resolveOtpChannel({ otpChannel: "WHATSAPP" })).toBe("whatsapp");
+    expect(resolveOtpChannel({ otpChannel: "bogus" })).toBe("sms");
   });
 });
