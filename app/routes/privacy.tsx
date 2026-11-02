@@ -196,7 +196,7 @@ export default function PrivacyPolicy() {
         <h2 style={h2}>11. Contact</h2>
         <p>
           Questions or data requests:{" "}
-          <strong>support@minimaledit.co</strong>
+          <strong>hello@minimaledit.com</strong>
         </p>
       </section>
     </div>

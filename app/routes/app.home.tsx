@@ -1059,6 +1059,17 @@ export default function AppHomePage() {
             >
               Privacy Policy — what data the app processes and why
             </Link>
+            <Text as="span" tone="subdued">
+              ·
+            </Text>
+            <Link
+              to="/support"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: "13px", color: "#6D7175" }}
+            >
+              Support
+            </Link>
           </InlineStack>
         </Box>
       </BlockStack>
