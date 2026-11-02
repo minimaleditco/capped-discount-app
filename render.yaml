@@ -2,7 +2,7 @@ services:
   - type: web
     name: capped-discount-app
     runtime: node
-    plan: free
+    plan: 0.5c-512mb
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:

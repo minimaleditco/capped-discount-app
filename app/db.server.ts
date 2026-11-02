@@ -340,7 +340,7 @@ const DEFAULT_SETTINGS = (shop: string): PartialCodSettings => ({
   autoCancelMinutes: 30,
   metaPixelId: "",
   metaCapiToken: "",
-  whatsappEnabled: true,
+  whatsappEnabled: false,
   whatsappProvider: "simulator",
   whatsappApiKey: "",
   whatsappApiUrl: "",
