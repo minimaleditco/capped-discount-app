@@ -398,15 +398,24 @@
     ensureModalExists();
     bindModalListeners();
 
-    // 1. Bind dedicated Product Page button if present
-    const buyBtn = $("pcod-fast-buy-btn");
-    if (buyBtn && !buyBtn.getAttribute("data-pcod-bound")) {
+    // 1. Bind every Partial COD Button block on the page. The block can be
+    // added to home, collection, cart and product templates; only the product
+    // template has a variant, so the others open the cart flow.
+    const buyBtns = document.querySelectorAll("#pcod-fast-buy-btn, .pcod-fast-buy-btn");
+    buyBtns.forEach(function (buyBtn) {
+      if (buyBtn.getAttribute("data-pcod-bound")) return;
       buyBtn.setAttribute("data-pcod-bound", "true");
       buyBtn.addEventListener("click", function (e) {
         e.preventDefault();
-        openProductChoiceModal();
+        const mode = buyBtn.getAttribute("data-mode");
+        const variantId = buyBtn.getAttribute("data-variant-id");
+        if (mode === "cart" || !variantId) {
+          openCartChoiceModal();
+        } else {
+          openProductChoiceModal();
+        }
       });
-    }
+    });
 
     // 2. Attach global click listener for Cart Checkout buttons and theme native Buy buttons
     document.addEventListener("click", handleGlobalClick, true);

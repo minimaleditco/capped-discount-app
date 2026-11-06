@@ -1,16 +1,30 @@
-{% if product and product.available %}
+{%- comment -%}
+  The block can be added to any section (home, collection, product, cart).
+  Only the product template has a `product` object. On every other template we
+  still render the button and open the cart-level Partial COD flow, instead of
+  outputting nothing (which looked like a broken app to reviewers).
+{%- endcomment -%}
+
+{%- assign pcod_has_product = false -%}
+{%- if product and product.available -%}
+  {%- assign pcod_has_product = true -%}
+{%- endif -%}
+
 <div class="pcod-fast-checkout-wrapper" style="margin: 12px 0;">
-  <button 
-    type="button" 
-    class="pcod-btn" 
+  <button
+    type="button"
+    class="pcod-btn pcod-fast-buy-btn"
     id="pcod-fast-buy-btn"
     style="background-color: {{ block.settings.button_bg_color | default: '#0F172A' }}; color: {{ block.settings.button_text_color | default: '#FFFFFF' }};"
-    data-product-id="{{ product.id }}"
-    data-variant-id="{{ product.selected_or_first_available_variant.id }}"
-    data-product-title="{{ product.title | escape }}"
-    data-product-price="{{ product.selected_or_first_available_variant.price | divided_by: 100.0 }}"
-    data-product-image="{{ product.featured_image | image_url: width: 300 }}"
+    data-mode="{% if pcod_has_product %}product{% else %}cart{% endif %}"
     data-shop="{{ shop.permanent_domain }}"
+    {% if pcod_has_product %}
+      data-product-id="{{ product.id }}"
+      data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+      data-product-title="{{ product.title | escape }}"
+      data-product-price="{{ product.selected_or_first_available_variant.price | divided_by: 100.0 }}"
+      data-product-image="{{ product.featured_image | image_url: width: 300 }}"
+    {% endif %}
   >
     <div class="pcod-btn-inner">
       <div class="pcod-btn-left">
@@ -23,7 +37,6 @@
     </div>
   </button>
 </div>
-{% endif %}
 
 {% schema %}
 {
