@@ -855,6 +855,12 @@
 
         renderCouponChips();
         recalculateModalPrices();
+
+        // A code may have been auto-selected above. Quote again with that code
+        // so the popup shows the discount Shopify will actually apply.
+        if (activeCoupon && !activeCoupon.isAuto) {
+          await refreshQuote();
+        }
       }
     } catch (e) {
       console.warn("[Store Offers Fetch Fallback]:", e);
@@ -880,6 +886,9 @@
     }
     renderCouponChips();
     recalculateModalPrices();
+    // The automatic discount is part of Shopify's calculation; re-quote so the
+    // numbers on screen match the invoice.
+    refreshQuote();
   }
 
   function renderCouponChips() {
@@ -1220,6 +1229,8 @@
     }
     renderCouponChips();
     recalculateModalPrices();
+    // Re-quote without the removed code so the deposit follows the new total.
+    refreshQuote();
   }
 
   function recalculateModalPrices() {

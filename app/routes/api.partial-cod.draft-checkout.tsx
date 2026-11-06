@@ -8,12 +8,8 @@ import {
   logAudit,
 } from "../db.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
-import { fetchLiveDiscounts, evaluateCoupon, computeAutoDiscountAmount } from "../services/coupons.server";
-import {
-  allocateProportionally,
-  resolveLineItems,
-  type RawLineItem,
-} from "../services/pricing.server";
+import { calculateDraftPricing } from "../services/draft-pricing.server";
+import { allocateProportionally, type RawLineItem } from "../services/pricing.server";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,17 +70,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? [{ variantId: body.variantId, quantity: body.quantity }]
       : [];
 
-    const resolved = await resolveLineItems(admin, rawItems);
-    if (!resolved.ok) {
+    const requestedCode = String(body.couponCode || "").trim();
+
+    // Shopify calculates the cart: automatic discounts, product scope,
+    // quantity conditions and stacking rules all come from Shopify itself.
+    const pricing = await calculateDraftPricing(admin, rawItems, requestedCode);
+    if (!pricing.ok) {
       return json(
-        { success: false, error: resolved.error || "Unable to price this order." },
+        { success: false, error: pricing.error || "Unable to price this order." },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    const lines = resolved.lines;
-    const subtotal = resolved.subtotal;
-    const currencyCode = resolved.currencyCode;
+    const lines = pricing.lines;
+    const subtotal = pricing.catalogSubtotal;
+    const currencyCode = pricing.currencyCode;
+    const effectiveTotalPrice = pricing.discountedSubtotal;
+    const appliedDiscount = pricing.totalDiscount;
+    const couponCode = pricing.appliedCodes[0] || "";
+    const discountSource = couponCode ? `code ${couponCode}` : "Shopify discount";
 
     // Every amount written to the draft order is formatted in the store's own
     // currency. Hard-coded rupee symbols made USD/EUR orders look wrong even
@@ -110,58 +114,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const isPrepaid = body.isPrepaid === true;
     const settings = await getPartialCodSettings(shop);
 
-    // ---------------------------------------------------------------------
-    // 3. Resolve the discount that actually applies to this order.
-    //
-    //    Two independent sources exist:
-    //      - a code the shopper typed (validated against live Shopify discounts)
-    //      - a Shopify *automatic* discount, which Shopify already applies to
-    //        the storefront cart but which draft orders do NOT inherit.
-    //
-    //    The app charges the deposit itself, so it must reproduce the same
-    //    number. Code and automatic discounts are treated as mutually
-    //    exclusive: whichever saves the customer more wins. Stacking them here
-    //    would hand out a discount Shopify never agreed to.
-    // ---------------------------------------------------------------------
-    const requestedCode = String(body.couponCode || "").trim();
 
-    let couponCode = "";
-    let couponDiscount = 0;
-    let autoDiscount = 0;
-    let autoTitle = "";
-
-    const { coupons, autoDiscount: liveAuto, lookupFailed } = await fetchLiveDiscounts(shop);
-
-    if (requestedCode) {
-      if (lookupFailed) {
-        return json(
-          { success: false, error: "Could not verify this coupon right now. Please try again." },
-          { status: 503, headers: corsHeaders }
-        );
-      }
-
-      const evaluation = evaluateCoupon(coupons, requestedCode, subtotal, currencyCode);
-      if (!evaluation.valid) {
-        return json(
-          { success: false, error: evaluation.error || "This coupon is not valid for this order." },
-          { status: 400, headers: corsHeaders }
-        );
-      }
-
-      couponDiscount = evaluation.discountAmount;
-      if (couponDiscount > 0) couponCode = evaluation.coupon!.code;
-    }
-
-    if (liveAuto) {
-      autoDiscount = computeAutoDiscountAmount(liveAuto, subtotal);
-      if (autoDiscount > 0) autoTitle = liveAuto.title || "Store automatic discount";
-    }
-
-    const useCoupon = couponDiscount >= autoDiscount && couponDiscount > 0;
-    const appliedDiscount = useCoupon ? couponDiscount : autoDiscount;
-    if (!useCoupon) couponCode = "";
-
-    const effectiveTotalPrice = Math.max(0, Math.round((subtotal - appliedDiscount) * 100) / 100);
 
     // ---------------------------------------------------------------------
     // 4. Verify WhatsApp / SMS OTP for COD orders only.
@@ -244,7 +197,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // ---------------------------------------------------------------------
     // 6. Build the draft order with a server-computed price override.
     // ---------------------------------------------------------------------
-    const shares = allocateProportionally(onlineAmount, lines);
+    // Spread the deposit across lines in proportion to what each line costs
+    // *after* Shopify's discounts, so the invoice mirrors the real order.
+    const shares = allocateProportionally(
+      onlineAmount,
+      lines.map((line) => ({ lineTotal: line.discountedLineTotal || line.lineTotal }))
+    );
 
     // Order-level context is attached to the first line only: Shopify renders
     // line-item attributes under each product on the invoice, so repeating the
@@ -253,7 +211,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (appliedDiscount > 0) {
       orderContextAttributes.push({
         key: "Discount Applied",
-        value: `-${fmtMoney(appliedDiscount)} (${useCoupon ? `code ${couponCode}` : autoTitle})`,
+        value: `-${fmtMoney(appliedDiscount)} (${discountSource})`,
       });
     }
     if (isPrepaid) {
@@ -297,7 +255,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           "Prepaid",
           "Paid Online",
           `Total Paid Online: ${fmtMoney(onlineAmount)}`,
-          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ${fmtMoney(couponDiscount)}`] : []),
+          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ${fmtMoney(appliedDiscount)}`] : []),
         ]
       : [
           "Partially Paid",
@@ -308,17 +266,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           matchedRuleType ? `Rule: ${matchedRuleType}` : "Rule: Store Default",
           ...(deliveryPincode ? [`Pincode: ${deliveryPincode}`] : []),
           ...(customerPhone ? [`SMS Verified: +91${customerPhone}`] : []),
-          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ${fmtMoney(couponDiscount)}`] : []),
+          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ${fmtMoney(appliedDiscount)}`] : []),
         ];
 
     const discountNoteLine =
       appliedDiscount > 0
-        ? `\n• Discount Applied: -${fmtMoney(appliedDiscount)} (${useCoupon ? `code ${couponCode}` : `automatic: ${autoTitle}`})`
+        ? `\n• Discount Applied: -${fmtMoney(appliedDiscount)} (${discountSource})`
         : "";
 
     if (appliedDiscount > 0) {
       tags.push(
-        useCoupon ? `Coupon: ${couponCode}` : "Automatic Discount",
+        couponCode ? `Coupon: ${couponCode}` : "Automatic Discount",
         `Discount: ${fmtMoney(appliedDiscount)}`
       );
     } else {
@@ -327,10 +285,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const note = isPrepaid
       ? `[FULL PREPAID ORDER] • Amount Paid: ${fmtMoney(onlineAmount)}${
-          couponCode ? `\n• Coupon Applied: ${couponCode} (-${fmtMoney(couponDiscount)})` : ""
+          couponCode ? `\n• Coupon Applied: ${couponCode} (-${fmtMoney(appliedDiscount)})` : ""
         }${discountNoteLine}`
       : `[PARTIALLY PAID] • Advance Deposit (Paid Online): ${fmtMoney(onlineAmount)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ${fmtMoney(balance)}\n• Dynamic Rule: ${ruleSummary}${
-          couponCode ? `\n• Coupon Applied: ${couponCode} (-${fmtMoney(couponDiscount)})` : ""
+          couponCode ? `\n• Coupon Applied: ${couponCode} (-${fmtMoney(appliedDiscount)})` : ""
         }${discountNoteLine}${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`;
 
     const customAttributes = isPrepaid
@@ -340,7 +298,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           ...(couponCode
             ? [
                 { key: "Coupon Code", value: couponCode },
-                { key: "Coupon Discount", value: fmtMoney(couponDiscount) },
+                { key: "Coupon Discount", value: fmtMoney(appliedDiscount) },
               ]
             : []),
           { key: "Order Subtotal (Verified)", value: fmtMoney(subtotal) },
@@ -355,7 +313,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           ...(couponCode
             ? [
                 { key: "Coupon Code", value: couponCode },
-                { key: "Coupon Discount", value: fmtMoney(couponDiscount) },
+                { key: "Coupon Discount", value: fmtMoney(appliedDiscount) },
               ]
             : []),
           { key: "Deposit Rule Applied", value: ruleSummary },
@@ -384,7 +342,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       shop,
       subtotal,
       couponCode,
-      couponDiscount,
+      appliedDiscount,
       isPrepaid,
       onlineAmount,
       balance,
@@ -437,7 +395,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         total: subtotal,
         currency: currencyCode,
         couponCode: couponCode || null,
-        couponDiscount,
+        appliedDiscount,
       },
       { headers: corsHeaders }
     );

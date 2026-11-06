@@ -1,13 +1,10 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { getDepositRules, getPartialCodSettings, normalizeShopDomain } from "../db.server";
+import { unauthenticated } from "../shopify.server";
+import { calculateDraftPricing } from "../services/draft-pricing.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
-import {
-  computeAutoDiscountAmount,
-  computeCouponDiscount,
-  evaluateCoupon,
-  fetchLiveDiscounts,
-} from "../services/coupons.server";
+import { fetchLiveDiscounts } from "../services/coupons.server";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +26,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   return handleRequest(request);
 };
+
+function round2(value: number): number {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
 
 async function handleRequest(request: Request) {
   try {
@@ -57,8 +58,7 @@ async function handleRequest(request: Request) {
       pincode = url.searchParams.get("pincode") || "";
       currency = url.searchParams.get("currency") || "";
       try {
-        const rawItems = url.searchParams.get("items") || "[]";
-        const parsed = JSON.parse(rawItems);
+        const parsed = JSON.parse(url.searchParams.get("items") || "[]");
         items = Array.isArray(parsed) ? parsed : [];
       } catch {
         items = [];
@@ -87,165 +87,170 @@ async function handleRequest(request: Request) {
       value: Number(settings.depositValue ?? 10),
     };
 
-    // The draft order is created before the shopper reaches Shopify checkout,
-    // so a pincode-based rule can only work if the widget asks for the pincode.
     const depositRules = await getDepositRules(cleanShop);
     const requiresPincode = depositRules.some((rule) => rule.conditionType === "Pincode");
 
+    // Coupon chips still list the store's live code discounts. Their amounts
+    // are informational only; every charged number comes from Shopify's own
+    // draft order calculation below.
+    const { coupons } = await fetchLiveDiscounts(cleanShop);
+
     // ---------------------------------------------------------------------
-    // Server-authoritative quote for the storefront popup.
+    // Authoritative pricing.
     //
-    // The popup used to compute the deposit in the browser from the store
-    // default alone, so any pincode / cart value / SKU rule was ignored and
-    // the amount shown never matched the draft order. Every number the
-    // shopper sees now comes from the same helpers the draft order uses.
+    // Shopify calculates a draft order for the exact lines and code, applying
+    // automatic discounts with their real scope and stacking rules. We read
+    // that total instead of re-deriving discounts from percentages.
     // ---------------------------------------------------------------------
+    let pricing: Awaited<ReturnType<typeof calculateDraftPricing>> | null = null;
+    if (items.length > 0) {
+      try {
+        const auth = await unauthenticated.admin(cleanShop);
+        pricing = await calculateDraftPricing(auth.admin, items, code);
+      } catch (err: any) {
+        console.warn("[Quote Pricing Error]:", err?.message || err);
+        pricing = null;
+      }
+    }
+
+    const effectiveSubtotal = pricing ? pricing.discountedSubtotal : Math.max(0, round2(subtotal));
+    const catalogSubtotal = pricing ? pricing.catalogSubtotal : Math.max(0, round2(subtotal));
+    const appliedDiscount = pricing ? pricing.totalDiscount : 0;
+    const quoteCurrency = pricing?.currencyCode || currency;
+    const appliedCodes = pricing?.appliedCodes || [];
+
     const fmt = (value: number) => {
       try {
         return new Intl.NumberFormat("en", {
           style: "currency",
-          currency: currency || "INR",
+          currency: quoteCurrency || "INR",
         }).format(value);
       } catch {
         return value.toFixed(2);
       }
     };
 
-    const buildQuote = async (discountAmount: number, discountTitle: string) => {
-      const applied = Math.max(0, Math.round((Number(discountAmount) || 0) * 100) / 100);
-      const effectiveTotal = Math.max(0, Math.round((subtotal - applied) * 100) / 100);
+    // ---------------------------------------------------------------------
+    // Deposit rules run against the Shopify-calculated total, so pincode,
+    // cart value and SKU rules see the same numbers the invoice will use.
+    // ---------------------------------------------------------------------
+    const ruleLines = pricing
+      ? pricing.lines.map((line) => ({
+          title: line.title,
+          sku: line.sku,
+          variantId: line.variantId,
+          price: line.unitPrice,
+          quantity: line.quantity,
+        }))
+      : items.map((it: any) => ({
+          title: it?.title,
+          sku: it?.sku,
+          variantId: it?.variantId,
+          price: Number(it?.price) || 0,
+          quantity: Number(it?.quantity) || 1,
+        }));
 
-      const evaluation =
-        effectiveTotal > 0
-          ? await evaluateDepositRules(cleanShop, {
-              totalPrice: effectiveTotal,
-              currency: currency || undefined,
-              pincode,
-              lineItems: items.map((it: any) => ({
-                sku: it?.sku ? String(it.sku) : undefined,
-                variantId: it?.variantId,
-                price: Number(it?.price) || 0,
-                quantity: Number(it?.quantity) || 1,
-              })),
-            })
-          : null;
-
-      const deposit = evaluation
-        ? Math.max(1, Math.min(effectiveTotal, Number(evaluation.deposit) || 0))
-        : 0;
-
-      let prepaidDiscount = 0;
-      if (prepaidOffer.enabled && prepaidOffer.value > 0 && effectiveTotal > 0) {
-        prepaidDiscount =
-          prepaidOffer.type === "percentage"
-            ? Math.round(((effectiveTotal * Math.min(prepaidOffer.value, 100)) / 100) * 100) / 100
-            : prepaidOffer.value;
-        prepaidDiscount = Math.min(prepaidDiscount, effectiveTotal);
-      }
-      const prepaidTotal = Math.max(0, Math.round((effectiveTotal - prepaidDiscount) * 100) / 100);
-
-      return {
-        currency,
-        subtotal,
-        discountAmount: applied,
-        discountTitle,
-        effectiveTotal,
-        deposit,
-        balance: Math.max(0, Math.round((effectiveTotal - deposit) * 100) / 100),
-        ruleSummary: evaluation?.ruleSummary || "",
-        prepaidDiscount,
-        prepaidTotal,
-        prepaidSavings: Math.max(0, Math.round((subtotal - prepaidTotal) * 100) / 100),
-      };
-    };
-
-    const { coupons, autoDiscount } = await fetchLiveDiscounts(cleanShop);
-    const autoAmount = autoDiscount ? computeAutoDiscountAmount(autoDiscount, subtotal) : 0;
-
-    // If no code was entered, return the live list of coupons, auto discount, and store deposit settings
-    if (!code) {
-      const autoWithAmount = autoDiscount
-        ? {
-            ...autoDiscount,
-            discountAmount: computeAutoDiscountAmount(autoDiscount, subtotal),
-          }
+    const evaluation =
+      effectiveSubtotal > 0
+        ? await evaluateDepositRules(cleanShop, {
+            totalPrice: effectiveSubtotal,
+            currency: quoteCurrency || undefined,
+            pincode,
+            lineItems: ruleLines,
+          })
         : null;
 
-      return json(
-        {
-          success: true,
-          autoDiscount: autoWithAmount,
-          coupons,
-          prepaidOffer,
-          depositSettings,
-          requiresPincode,
-          quote: await buildQuote(autoAmount, autoDiscount?.title || ""),
-        },
-        { headers: corsHeaders }
-      );
+    const deposit = evaluation
+      ? Math.max(1, Math.min(effectiveSubtotal, Number(evaluation.deposit) || 0))
+      : 0;
+
+    let prepaidDiscount = 0;
+    if (prepaidOffer.enabled && prepaidOffer.value > 0 && effectiveSubtotal > 0) {
+      prepaidDiscount =
+        prepaidOffer.type === "percentage"
+          ? Math.round(((effectiveSubtotal * Math.min(prepaidOffer.value, 100)) / 100) * 100) / 100
+          : prepaidOffer.value;
+      prepaidDiscount = Math.min(prepaidDiscount, effectiveSubtotal);
+    }
+    const prepaidTotal = Math.max(0, round2(effectiveSubtotal - prepaidDiscount));
+
+    const quote = {
+      currency: quoteCurrency,
+      subtotal: catalogSubtotal,
+      discountAmount: appliedDiscount,
+      discountTitle: appliedDiscount > 0 ? "Shopify discount" : "",
+      effectiveTotal: effectiveSubtotal,
+      deposit,
+      balance: Math.max(0, round2(effectiveSubtotal - deposit)),
+      ruleSummary: evaluation?.ruleSummary || "",
+      prepaidDiscount,
+      prepaidTotal,
+      prepaidSavings: Math.max(0, round2(catalogSubtotal - prepaidTotal)),
+    };
+
+    const codeApplied = code
+      ? appliedCodes.some((value) => value.toUpperCase() === code.toUpperCase())
+      : false;
+
+    const baseResponse = {
+      coupons,
+      prepaidOffer,
+      depositSettings,
+      requiresPincode,
+      quote,
+      autoDiscount:
+        !code && appliedDiscount > 0
+          ? {
+              id: "auto",
+              code: "AUTO",
+              title: "Shopify automatic discount",
+              percentage: 0,
+              maxCap: 0,
+              minSubtotal: 0,
+              discountAmount: appliedDiscount,
+              isAuto: true,
+            }
+          : null,
+    };
+
+    // No code typed: return the offer list plus the authoritative quote.
+    if (!code) {
+      return json({ success: true, ...baseResponse }, { headers: corsHeaders });
     }
 
-    const evaluation = evaluateCoupon(coupons, code, subtotal, currency || undefined);
-
-    if (!evaluation.valid) {
+    if (!codeApplied) {
       return json(
         {
+          success: false,
           valid: false,
-          error: evaluation.error,
-          coupons,
-          prepaidOffer,
-          depositSettings,
-          requiresPincode,
-          quote: await buildQuote(autoAmount, autoDiscount?.title || ""),
+          error: "This code is not valid for this order.",
+          ...baseResponse,
         },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    const matchedRule = evaluation.coupon!;
-    const discountAmount = evaluation.discountAmount;
-
-    // The draft order charges the better of (typed code, automatic discount),
-    // so the quote must use the same base or the popup would drift from the
-    // amount actually charged.
-    const appliedForQuote = Math.max(discountAmount, autoAmount);
-    const quote = await buildQuote(
-      appliedForQuote,
-      discountAmount >= autoAmount ? matchedRule.title : autoDiscount?.title || ""
-    );
-
-    const effectiveSubtotal = quote.effectiveTotal;
-    const extraPrepaidDiscount = quote.prepaidDiscount;
-    const prepaidTotal = quote.prepaidTotal;
-    const deposit = quote.deposit;
-    const balance = quote.balance;
-
     return json(
       {
+        success: true,
         valid: true,
-        code: matchedRule.code,
-        title: matchedRule.title,
-        discountAmount,
-        discountSummary: matchedRule.type === "percentage"
-          ? `${matchedRule.value}% OFF (Save ${fmt(discountAmount)})`
-          : `Flat ${fmt(discountAmount)} OFF`,
-        originalSubtotal: subtotal,
+        code: appliedCodes[0] || code,
+        title: appliedCodes[0] || code,
+        discountAmount: appliedDiscount,
+        discountSummary: `${fmt(appliedDiscount)} off with ${appliedCodes[0] || code}`,
+        originalSubtotal: catalogSubtotal,
         newSubtotal: effectiveSubtotal,
-        prepaidDiscount: extraPrepaidDiscount,
+        prepaidDiscount,
         prepaidTotal,
         depositAmount: deposit,
-        balanceAmount: balance,
-        depositSettings,
-        prepaidOffer,
-        coupons,
-        requiresPincode,
-        quote,
+        balanceAmount: quote.balance,
+        ...baseResponse,
       },
       { headers: corsHeaders }
     );
   } catch (err: any) {
     return json(
-      { valid: false, error: err?.message || "Failed to calculate coupon discount." },
+      { success: false, valid: false, error: err?.message || "Failed to calculate pricing." },
       { status: 500, headers: corsHeaders }
     );
   }
