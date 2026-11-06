@@ -117,7 +117,7 @@ export default function AppHomePage() {
   return (
     <Page
       title="Partio"
-      subtitle="Capped discounts, Partial COD deposits and OTP verification — built to protect margins and cut RTO."
+      subtitle="Capped discounts, Partial COD deposits and optional phone verification, built for COD-heavy stores."
       compactTitle
       fullWidth
     >
@@ -176,7 +176,7 @@ export default function AppHomePage() {
                       letterSpacing: "0.02em",
                     }}
                   >
-                    🚀 v2.0 Enterprise Engine
+                    ⚡ Shopify Functions
                   </span>
                   <span
                     style={{
@@ -193,14 +193,14 @@ export default function AppHomePage() {
               </InlineStack>
 
               <Text as="h1" variant="heading2xl">
-                Protect Your Margins & Slash RTO by 80%
+                Protect Your Margins on COD Orders
               </Text>
 
               <div style={{ maxWidth: "620px", opacity: 0.9 }}>
                 <Text as="p" variant="bodyLg">
-                  Combine high-converting percentage discounts protected by maximum rupee caps, 
-                  flexible advance deposit collection online, SMS/WhatsApp order verification, 
-                  and server-side Meta ROAS tracking.
+                  Set percentage discounts with a maximum cap, collect advance deposits online, 
+                  and apply deposit rules by pincode, cart value or product. Phone verification 
+                  and Meta tracking are optional.
                 </Text>
               </div>
 
@@ -247,7 +247,7 @@ export default function AppHomePage() {
                 <Divider />
                 <InlineStack align="space-between">
                   <span style={{ fontSize: "13px", opacity: 0.85 }}>Active Discounts:</span>
-                  <span style={{ fontSize: "15px", fontWeight: 700 }}>{stats.discountsCount} Deals</span>
+                  <span style={{ fontSize: "15px", fontWeight: 700 }}>{stats.discountsCount} {stats.discountsCount === 1 ? "Deal" : "Deals"}</span>
                 </InlineStack>
                 <InlineStack align="space-between">
                   <span style={{ fontSize: "13px", opacity: 0.85 }}>Default Deposit:</span>
@@ -473,7 +473,7 @@ export default function AppHomePage() {
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "11px", opacity: 0.75, textTransform: "uppercase" }}>Uncapped Discount</div>
                       <div style={{ fontSize: "20px", fontWeight: 700, color: "#F87171" }}>-₹1,000</div>
-                      <div style={{ fontSize: "11px", color: "#FCA5A5" }}>❌ Heavy Margin Loss</div>
+                      <div style={{ fontSize: "11px", color: "#FCA5A5" }}>❌ Discount uncapped</div>
                     </div>
                     <div style={{ fontSize: "24px", color: "#6366F1" }}>➔</div>
                     <div
@@ -487,7 +487,7 @@ export default function AppHomePage() {
                     >
                       <div style={{ fontSize: "11px", color: "#34D399", fontWeight: 600 }}>CAPPED AT ₹500</div>
                       <div style={{ fontSize: "20px", fontWeight: 700, color: "#34D399" }}>-₹500 Max</div>
-                      <div style={{ fontSize: "11px", color: "#A7F3D0" }}>✅ ₹500 Profit Saved</div>
+                      <div style={{ fontSize: "11px", color: "#A7F3D0" }}>✅ Capped at ₹500</div>
                     </div>
                   </div>
 
@@ -499,8 +499,9 @@ export default function AppHomePage() {
                       <Badge tone="success">Shopify Function Native</Badge>
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Standard Shopify percentage discounts (e.g. 50% OFF) destroy profits on bulk orders. 
-                      Our Shopify Function automatically evaluates the cart and applies percentage savings up to your strict maximum ceiling cap.
+                      Standard percentage discounts (for example 50% OFF) can take a large share of
+                      profit on bulk orders. A Shopify Function evaluates the cart and applies savings
+                      up to your maximum cap.
                     </Text>
                   </BlockStack>
 
@@ -594,11 +595,11 @@ export default function AppHomePage() {
                       <Text as="h3" variant="headingMd">
                         2. Partial Cash on Delivery (COD)
                       </Text>
-                      <Badge tone="info">80% RTO Reduction</Badge>
+                      <Badge tone="info">Deposit at Checkout</Badge>
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Pure COD orders suffer 30-40% customer rejection at doorstep. Requiring a 10% advance deposit 
-                      guarantees buyer commitment while giving buyers the comfort of paying the rest in cash upon delivery.
+                      Pure COD orders carry doorstep rejection risk. An advance deposit collected
+                      online adds commitment, and the buyer still pays the rest in cash on delivery.
                     </Text>
                   </BlockStack>
 
@@ -800,7 +801,7 @@ export default function AppHomePage() {
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "11px", opacity: 0.8 }}>Browser Pixel Error</div>
                       <div style={{ fontSize: "16px", fontWeight: 700, color: "#FCA5A5" }}>₹108 Tracked</div>
-                      <div style={{ fontSize: "10.5px", opacity: 0.8 }}>ROAS artificially drops 90%</div>
+                      <div style={{ fontSize: "10.5px", opacity: 0.8 }}>Only the deposit is tracked</div>
                     </div>
                     <div style={{ fontSize: "22px", color: "#60A5FA" }}>➔</div>
                     <div
@@ -831,8 +832,9 @@ export default function AppHomePage() {
                       </InlineStack>
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Standard pixel trackers only see the ₹108 online deposit, destroying Facebook Ad ROAS. 
-                      Our server-side CAPI intercepts the order and reports the FULL cart value (Deposit + COD balance) directly to Meta.
+                      Standard pixel trackers only see the ₹108 online deposit, so reported revenue
+                      is lower than the order value. Our server-side CAPI sends the full cart value
+                      (deposit + COD balance) to Meta.
                     </Text>
                   </BlockStack>
 
@@ -869,9 +871,9 @@ export default function AppHomePage() {
                     }}
                   >
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "11px", opacity: 0.8 }}>Standard Shopify Refund</div>
+                      <div style={{ fontSize: "11px", opacity: 0.8 }}>Manual refund</div>
                       <div style={{ fontSize: "16px", fontWeight: 700, color: "#FCA5A5" }}>₹1,080 Refunded</div>
-                      <div style={{ fontSize: "10.5px", color: "#FCA5A5" }}>Refunds unpaid COD cash!</div>
+                      <div style={{ fontSize: "10.5px", color: "#FCA5A5" }}>Risk of refunding the full total</div>
                     </div>
                     <div style={{ fontSize: "22px", color: "#C084FC" }}>➔</div>
                     <div
@@ -885,7 +887,7 @@ export default function AppHomePage() {
                     >
                       <div style={{ fontSize: "11px", color: "#E9D5FF", fontWeight: 600 }}>DEPOSIT GUARD</div>
                       <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>₹108 Online Deposit</div>
-                      <div style={{ fontSize: "10.5px", color: "#E9D5FF" }}>Restocks + Shields ₹972</div>
+                      <div style={{ fontSize: "10.5px", color: "#E9D5FF" }}>Restocks + refunds deposit only</div>
                     </div>
                   </div>
 
