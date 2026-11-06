@@ -86,6 +86,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const subtotal = resolved.subtotal;
     const currencyCode = resolved.currencyCode;
 
+    // Every amount written to the draft order is formatted in the store's own
+    // currency. Hard-coded rupee symbols made USD/EUR orders look wrong even
+    // when the numbers were correct.
+    const fmtMoney = (value: number) => {
+      try {
+        return new Intl.NumberFormat("en", {
+          style: "currency",
+          currency: currencyCode,
+        }).format(value);
+      } catch {
+        return `${currencyCode} ${Number(value).toFixed(2)}`;
+      }
+    };
+
     if (subtotal <= 0) {
       return json(
         { success: false, error: "This cart has no payable value." },
@@ -239,18 +253,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (appliedDiscount > 0) {
       orderContextAttributes.push({
         key: "Discount Applied",
-        value: `-₹${appliedDiscount.toFixed(2)} (${useCoupon ? `code ${couponCode}` : autoTitle})`,
+        value: `-${fmtMoney(appliedDiscount)} (${useCoupon ? `code ${couponCode}` : autoTitle})`,
       });
     }
     if (isPrepaid) {
       orderContextAttributes.push({
         key: "Payment",
-        value: `Paid in full online: ₹${onlineAmount.toFixed(2)}`,
+        value: `Paid in full online: ${fmtMoney(onlineAmount)}`,
       });
     } else {
       orderContextAttributes.push(
-        { key: "Pay Now (Advance Deposit)", value: `₹${onlineAmount.toFixed(2)}` },
-        { key: "Balance Due on Delivery (Cash)", value: `₹${balance.toFixed(2)}` }
+        { key: "Pay Now (Advance Deposit)", value: fmtMoney(onlineAmount) },
+        { key: "Balance Due on Delivery (Cash)", value: fmtMoney(balance) }
       );
       if (deliveryPincode) {
         orderContextAttributes.push({ key: "Delivery Pincode", value: deliveryPincode });
@@ -271,8 +285,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           currencyCode,
         },
         customAttributes: [
-          { key: "Catalog Unit Price", value: `₹${line.unitPrice.toFixed(2)}` },
-          { key: "Net Product Total", value: `₹${line.lineTotal.toFixed(2)}` },
+          { key: "Catalog Unit Price", value: fmtMoney(line.unitPrice) },
+          { key: "Net Product Total", value: fmtMoney(line.lineTotal) },
           ...(index === 0 ? orderContextAttributes : []),
         ],
       };
@@ -282,66 +296,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? [
           "Prepaid",
           "Paid Online",
-          `Total Paid Online: ₹${onlineAmount}`,
-          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
+          `Total Paid Online: ${fmtMoney(onlineAmount)}`,
+          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ${fmtMoney(couponDiscount)}`] : []),
         ]
       : [
           "Partially Paid",
           "Partial COD",
-          `Deposit Paid: ₹${onlineAmount}`,
-          `Doorstep Balance: ₹${balance}`,
-          `Collect ₹${balance} on Delivery`,
+          `Deposit Paid: ${fmtMoney(onlineAmount)}`,
+          `Doorstep Balance: ${fmtMoney(balance)}`,
+          `Collect ${fmtMoney(balance)} on Delivery`,
           matchedRuleType ? `Rule: ${matchedRuleType}` : "Rule: Store Default",
           ...(deliveryPincode ? [`Pincode: ${deliveryPincode}`] : []),
           ...(customerPhone ? [`SMS Verified: +91${customerPhone}`] : []),
-          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ₹${couponDiscount}`] : []),
+          ...(couponCode ? [`Coupon: ${couponCode}`, `Coupon Discount: ${fmtMoney(couponDiscount)}`] : []),
         ];
 
     const discountNoteLine =
       appliedDiscount > 0
-        ? `\n• Discount Applied: -₹${appliedDiscount.toFixed(2)} (${useCoupon ? `code ${couponCode}` : `automatic: ${autoTitle}`})`
+        ? `\n• Discount Applied: -${fmtMoney(appliedDiscount)} (${useCoupon ? `code ${couponCode}` : `automatic: ${autoTitle}`})`
         : "";
 
     if (appliedDiscount > 0) {
       tags.push(
         useCoupon ? `Coupon: ${couponCode}` : "Automatic Discount",
-        `Discount: ₹${appliedDiscount}`
+        `Discount: ${fmtMoney(appliedDiscount)}`
       );
     } else {
       tags.push("No Discount");
     }
 
     const note = isPrepaid
-      ? `[FULL PREPAID ORDER] • Amount Paid: ₹${onlineAmount.toFixed(2)}${
-          couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""
+      ? `[FULL PREPAID ORDER] • Amount Paid: ${fmtMoney(onlineAmount)}${
+          couponCode ? `\n• Coupon Applied: ${couponCode} (-${fmtMoney(couponDiscount)})` : ""
         }${discountNoteLine}`
-      : `[PARTIALLY PAID] • Advance Deposit (Paid Online): ₹${onlineAmount.toFixed(2)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ₹${balance.toFixed(2)}\n• Dynamic Rule: ${ruleSummary}${
-          couponCode ? `\n• Coupon Applied: ${couponCode} (-₹${couponDiscount.toFixed(2)})` : ""
+      : `[PARTIALLY PAID] • Advance Deposit (Paid Online): ${fmtMoney(onlineAmount)}\n• Remaining COD Balance (To Collect in Cash at Doorstep): ${fmtMoney(balance)}\n• Dynamic Rule: ${ruleSummary}${
+          couponCode ? `\n• Coupon Applied: ${couponCode} (-${fmtMoney(couponDiscount)})` : ""
         }${discountNoteLine}${customerPhone ? `\n• Verified Mobile (SMS): +91${customerPhone}` : ""}`;
 
     const customAttributes = isPrepaid
       ? [
           { key: "Payment Type", value: "Prepaid Online" },
-          { key: "Prepaid Total Paid", value: `₹${onlineAmount.toFixed(2)}` },
+          { key: "Prepaid Total Paid", value: fmtMoney(onlineAmount) },
           ...(couponCode
             ? [
                 { key: "Coupon Code", value: couponCode },
-                { key: "Coupon Discount", value: `₹${couponDiscount.toFixed(2)}` },
+                { key: "Coupon Discount", value: fmtMoney(couponDiscount) },
               ]
             : []),
-          { key: "Order Subtotal (Verified)", value: `₹${subtotal.toFixed(2)}` },
+          { key: "Order Subtotal (Verified)", value: fmtMoney(subtotal) },
           { key: "single_coupon_policy_enforced", value: "true" },
         ]
       : [
           { key: "Payment Status", value: "Partially Paid" },
-          { key: "Advance Deposit Paid", value: `₹${onlineAmount.toFixed(2)}` },
-          { key: "Doorstep COD Balance Due", value: `₹${balance.toFixed(2)}` },
-          { key: "Order Subtotal (Verified)", value: `₹${subtotal.toFixed(2)}` },
+          { key: "Advance Deposit Paid", value: fmtMoney(onlineAmount) },
+          { key: "Doorstep COD Balance Due", value: fmtMoney(balance) },
+          { key: "Order Subtotal (Verified)", value: fmtMoney(subtotal) },
           ...(customerPhone ? [{ key: "Verified Mobile", value: customerPhone }] : []),
           ...(couponCode
             ? [
                 { key: "Coupon Code", value: couponCode },
-                { key: "Coupon Discount", value: `₹${couponDiscount.toFixed(2)}` },
+                { key: "Coupon Discount", value: fmtMoney(couponDiscount) },
               ]
             : []),
           { key: "Deposit Rule Applied", value: ruleSummary },

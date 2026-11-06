@@ -1,6 +1,23 @@
 (function () {
   const BACKEND_URL = "https://capped-discount-app.onrender.com";
 
+  // The storefront can sell in any presentment currency. Formatting every
+  // amount with Intl keeps the popup identical to Shopify checkout instead of
+  // hard-coding a rupee symbol on a USD or EUR store.
+  const ACTIVE_CURRENCY =
+    (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) || "INR";
+  const moneyFormatter = (() => {
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency: ACTIVE_CURRENCY });
+    } catch (e) {
+      return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
+    }
+  })();
+  function money(value) {
+    const n = Number(value);
+    return moneyFormatter.format(Number.isFinite(n) ? n : 0);
+  }
+
   let activeMode = "product"; // "product" or "cart"
   let activeProduct = {
     variantId: "",
@@ -101,9 +118,9 @@
                 </span>
                 <span class="pcod-prepaid-tag" id="pcod-prepaid-tag">⚡ Extra 5% OFF on Prepaid</span>
                 <div class="pcod-price-stack">
-                  <span class="pcod-card-price" id="pcod-prepaid-price">₹0</span>
-                  <span class="pcod-original-price" id="pcod-prepaid-orig-price" style="display: none;">₹0</span>
-                  <span class="pcod-save-badge" id="pcod-prepaid-save-badge" style="display: none;">Save ₹0</span>
+                  <span class="pcod-card-price" id="pcod-prepaid-price">${money(0)}</span>
+                  <span class="pcod-original-price" id="pcod-prepaid-orig-price" style="display: none;">${money(0)}</span>
+                  <span class="pcod-save-badge" id="pcod-prepaid-save-badge" style="display: none;">Save ${money(0)}</span>
                 </div>
               </div>
               <div class="pcod-card-body">
@@ -111,7 +128,7 @@
                 <div class="pcod-card-desc" id="pcod-prepaid-desc">Pay 100% online now via UPI, Cards, or Netbanking. Extra prepaid savings applied automatically.</div>
               </div>
               <button type="button" class="pcod-select-btn pcod-btn-prepaid" id="pcod-btn-choose-prepaid">
-                <span class="pcod-btn-text" id="pcod-prepaid-btn-label">Pay Full ₹0 Online →</span>
+                <span class="pcod-btn-text" id="pcod-prepaid-btn-label">Pay Full ${money(0)} Online →</span>
               </button>
             </div>
 
@@ -127,18 +144,18 @@
                   </svg>
                   <span>Pay Rest on Delivery</span>
                 </span>
-                <span class="pcod-save-badge" id="pcod-cod-tag" style="display: none;">Save ₹0</span>
+                <span class="pcod-save-badge" id="pcod-cod-tag" style="display: none;">Save ${money(0)}</span>
                 <div class="pcod-price-stack">
                   <div class="pcod-card-price-split">
-                    <span class="pcod-price-now" id="pcod-cod-now">₹0 Now</span>
-                    <span class="pcod-price-doorstep" id="pcod-cod-doorstep">+ ₹0 COD</span>
+                    <span class="pcod-price-now" id="pcod-cod-now">${money(0)} Now</span>
+                    <span class="pcod-price-doorstep" id="pcod-cod-doorstep">+ ${money(0)} COD</span>
                   </div>
-                  <span class="pcod-original-price" id="pcod-cod-orig-price" style="display: none;">Total ₹0</span>
+                  <span class="pcod-original-price" id="pcod-cod-orig-price" style="display: none;">Total ${money(0)}</span>
                 </div>
               </div>
               <div class="pcod-card-body">
                 <div class="pcod-card-title">Option 2: Partial Cash on Delivery</div>
-                <div class="pcod-card-desc">Pay only <strong id="pcod-cod-desc-deposit">₹0</strong> advance deposit online to confirm shipping. Pay the remaining <strong id="pcod-cod-desc-balance">₹0</strong> in cash at your doorstep.<span id="pcod-cod-desc-saving" style="display: none; color: #059669; font-weight: 600;"></span></div>
+                <div class="pcod-card-desc">Pay only <strong id="pcod-cod-desc-deposit">${money(0)}</strong> advance deposit online to confirm shipping. Pay the remaining <strong id="pcod-cod-desc-balance">${money(0)}</strong> in cash at your doorstep.<span id="pcod-cod-desc-saving" style="display: none; color: #059669; font-weight: 600;"></span></div>
               </div>
               <button type="button" class="pcod-select-btn pcod-btn-cod" id="pcod-btn-choose-cod">
                 <span class="pcod-btn-text" id="pcod-cod-btn-label">Pay Deposit & Confirm COD →</span>
@@ -258,6 +275,16 @@
     if (codBtn && !codBtn.getAttribute("data-pcod-bound")) {
       codBtn.setAttribute("data-pcod-bound", "true");
       codBtn.addEventListener("click", handleCodCheckout);
+    }
+
+    // A pincode rule changes the deposit, so re-quote as the shopper types.
+    const pincodeInput = $("pcod-pincode-input");
+    if (pincodeInput && !pincodeInput.getAttribute("data-pcod-bound")) {
+      pincodeInput.setAttribute("data-pcod-bound", "true");
+      pincodeInput.addEventListener("input", function () {
+        clearTimeout(quoteTimer);
+        quoteTimer = setTimeout(refreshQuote, 600);
+      });
     }
 
     // Coupon listeners
@@ -553,7 +580,7 @@
     populateModalUI({
       title: details.title,
       image: details.image,
-      meta: `Quantity: ${details.quantity} • Subtotal: ₹${total.toLocaleString("en-IN")}`,
+      meta: `Quantity: ${details.quantity} • Subtotal: ${money(total)}`,
       total,
       deposit,
       balance,
@@ -630,7 +657,7 @@
       populateModalUI({
         title: cartTitle,
         image: firstItem.image || "",
-        meta: `${cart.item_count} item${cart.item_count > 1 ? "s" : ""} in cart • Total: ₹${total.toLocaleString("en-IN")}`,
+        meta: `${cart.item_count} item${cart.item_count > 1 ? "s" : ""} in cart • Total: ${money(total)}`,
         total,
         deposit,
         balance,
@@ -653,6 +680,9 @@
     autoDiscount: null,
     coupons: [],
     requiresPincode: false,
+    // Last server-authoritative quote: subtotal, discount, deposit, balance.
+    // The popup never invents these numbers on its own.
+    quote: null,
     prepaidOffer: {
       enabled: true,
       type: "percentage",
@@ -710,7 +740,7 @@
         msgElem.style.borderColor = "#86EFAC";
         msgElem.style.color = "#166534";
         msgElem.innerHTML = `
-          <span>🎉 Best Deal <strong>${bestCoupon.code}</strong> auto-applied! Saved ₹${bestCoupon.discountAmount.toLocaleString("en-IN")}</span>
+          <span>🎉 Best Deal <strong>${bestCoupon.code}</strong> auto-applied! Saved ${money(bestCoupon.discountAmount)}</span>
           <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
         `;
         const removeBtn = $("pcod-coupon-remove-btn");
@@ -718,6 +748,59 @@
           removeBtn.addEventListener("click", handleRemoveCoupon);
         }
       }
+    }
+  }
+
+  function quoteItems() {
+    if (activeMode === "cart" && activeCart && Array.isArray(activeCart.items)) {
+      return activeCart.items.map((it) => ({
+        variantId: it.id,
+        quantity: it.quantity,
+        price: it.price / 100,
+        sku: it.sku || "",
+      }));
+    }
+    if (activeProduct && activeProduct.variantId) {
+      return [
+        {
+          variantId: activeProduct.variantId,
+          quantity: activeProduct.quantity,
+          price: activeProduct.price,
+          sku: "",
+        },
+      ];
+    }
+    return [];
+  }
+
+  // Re-quote the cart against the server. Used when the shopper changes the
+  // delivery pincode, because a pincode rule changes the deposit.
+  let quoteTimer = null;
+  async function refreshQuote() {
+    try {
+      const shop = getShopDomain();
+      if (!shop || baseOrderTotal <= 0) return;
+      const payload = {
+        shop,
+        subtotal: baseOrderTotal,
+        code: activeCoupon && !activeCoupon.isAuto ? activeCoupon.code : "",
+        pincode: readPincode() || "",
+        currency: ACTIVE_CURRENCY,
+        items: quoteItems(),
+      };
+      const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data && data.quote) {
+        storeOffers.quote = data.quote;
+        recalculateModalPrices();
+      }
+    } catch (e) {
+      // Keep the previous quote; the draft order remains authoritative.
+      console.warn("[Quote Refresh Failed]:", e);
     }
   }
 
@@ -730,7 +813,17 @@
         recalculateModalPrices();
         return;
       }
-      const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons?shop=${encodeURIComponent(shop)}&subtotal=${subtotal}`);
+      const params = new URLSearchParams({
+        shop,
+        subtotal: String(subtotal),
+        currency: ACTIVE_CURRENCY,
+      });
+      const pincode = readPincode();
+      if (pincode) params.set("pincode", pincode);
+      const items = quoteItems();
+      if (items.length) params.set("items", JSON.stringify(items));
+
+      const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.depositSettings) {
@@ -746,6 +839,8 @@
         // for display and include them in our own calculation, but never send
         // them back as a coupon code (the server would reject "AUTO").
         storeOffers.autoDiscount = data.autoDiscount || null;
+        // Server-computed deposit/balance, exactly what the draft order charges.
+        storeOffers.quote = data.quote || null;
 
         // A pincode-based deposit rule can only be evaluated if the shopper
         // types the pincode here: the draft order is created before Shopify
@@ -780,7 +875,7 @@
       msgElem.style.borderColor = "#FCD34D";
       msgElem.style.color = "#92400E";
       msgElem.innerHTML = `
-        <span>⚡ Store Auto Discount <strong>${storeOffers.autoDiscount.title}</strong> is locked in! Saved ₹${storeOffers.autoDiscount.discountAmount.toLocaleString("en-IN")}</span>
+        <span>⚡ Store Auto Discount <strong>${storeOffers.autoDiscount.title}</strong> is locked in! Saved ${money(storeOffers.autoDiscount.discountAmount)}</span>
       `;
     }
     renderCouponChips();
@@ -856,17 +951,17 @@
         if (!title) {
           title =
             c.type === "percentage"
-              ? `${c.value}% OFF${c.maxCap ? ` (Max ₹${c.maxCap})` : ""}`
-              : `Flat ₹${c.value} OFF${minSub > 0 ? ` above ₹${minSub}` : ""}`;
+              ? `${c.value}% OFF${c.maxCap ? ` (Max ${money(c.maxCap)})` : ""}`
+              : `Flat ${money(c.value)} OFF${minSub > 0 ? ` above ${money(minSub)}` : ""}`;
         }
 
         let tagHtml = "";
         if (isActive) {
-          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #ECFDF5; color: #065F46; font-weight: 700;">✓ Active • Saved ₹${potentialSavings.toLocaleString("en-IN")}</span>`;
+          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #ECFDF5; color: #065F46; font-weight: 700;">✓ Active • Saved ${money(potentialSavings)}</span>`;
         } else if (isLocked) {
-          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #FEE2E2; color: #991B1B; font-weight: 600;">🔒 Not Applicable: Add ₹${diff.toLocaleString("en-IN")} more</span>`;
+          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #FEE2E2; color: #991B1B; font-weight: 600;">🔒 Not Applicable: Add ${money(diff)} more</span>`;
         } else {
-          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #EFF6FF; color: #1E40AF; font-weight: 600;">✨ Saves ₹${potentialSavings.toLocaleString("en-IN")} with this code</span>`;
+          tagHtml = `<span class="pcod-discount-unlock-tag" style="background: #EFF6FF; color: #1E40AF; font-weight: 600;">✨ Saves ${money(potentialSavings)} with this code</span>`;
         }
 
         let rightActionHtml = "";
@@ -945,7 +1040,7 @@
             msgElem.style.background = "#FEF2F2";
             msgElem.style.borderColor = "#FCA5A5";
             msgElem.style.color = "#DC2626";
-            msgElem.innerHTML = `<span>⚠️ Coupon <strong>${code}</strong> is not applicable for this order: Minimum order of ₹${minSub} required (Add ₹${diff} more).</span>`;
+            msgElem.innerHTML = `<span>⚠️ Coupon <strong>${code}</strong> is not applicable for this order: Minimum order of ${money(minSub)} required (Add ${money(diff)} more).</span>`;
           }
           return;
         }
@@ -982,7 +1077,7 @@
           msgElem.style.background = "#FEF2F2";
           msgElem.style.borderColor = "#FCA5A5";
           msgElem.style.color = "#DC2626";
-          msgElem.innerHTML = `<span>⚠️ Coupon <strong>${localMatch.code}</strong> is not applicable for this order: Minimum order of ₹${minSub} required (Add ₹${diff} more).</span>`;
+          msgElem.innerHTML = `<span>⚠️ Coupon <strong>${localMatch.code}</strong> is not applicable for this order: Minimum order of ${money(minSub)} required (Add ${money(diff)} more).</span>`;
         }
         if (applyBtn) {
           applyBtn.disabled = false;
@@ -1018,7 +1113,7 @@
         msgElem.style.borderColor = "#86EFAC";
         msgElem.style.color = "#166534";
         msgElem.innerHTML = `
-          <span>🎉 Code <strong>${localMatch.code}</strong> applied! Saved ₹${discountAmount.toLocaleString("en-IN")}</span>
+          <span>🎉 Code <strong>${localMatch.code}</strong> applied! Saved ${money(discountAmount)}</span>
           <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">Remove</button>
         `;
         const removeBtn = $("pcod-coupon-remove-btn");
@@ -1033,6 +1128,7 @@
 
     try {
       const shop = getShopDomain();
+      const pincode = readPincode();
       const res = await fetch(`${BACKEND_URL}/api/partial-cod/coupons`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1040,10 +1136,16 @@
           shop,
           code: rawCode,
           subtotal: baseOrderTotal,
+          pincode,
+          currency: ACTIVE_CURRENCY,
+          items: quoteItems(),
         }),
       });
 
       const data = await res.json();
+      if (data && data.quote) {
+        storeOffers.quote = data.quote;
+      }
       if (!res.ok || !data.valid) {
         if (!localMatch) {
           throw new Error(data.error || `Coupon '${rawCode}' is not valid for this order.`);
@@ -1064,7 +1166,7 @@
           msgElem.style.borderColor = "#86EFAC";
           msgElem.style.color = "#166534";
           msgElem.innerHTML = `
-            <span>🎉 Code <strong>${data.code}</strong> applied! Saved ₹${data.discountAmount.toLocaleString("en-IN")}${storeOffers.autoDiscount ? " (Replaces Auto Discount)" : ""}</span>
+            <span>🎉 Code <strong>${data.code}</strong> applied! Saved ${money(data.discountAmount)}${storeOffers.autoDiscount ? " (Replaces Auto Discount)" : ""}</span>
             <button type="button" class="pcod-coupon-remove-btn" id="pcod-coupon-remove-btn">${storeOffers.autoDiscount ? "Revert to Auto Offer" : "Remove"}</button>
           `;
           const removeBtn = $("pcod-coupon-remove-btn");
@@ -1126,8 +1228,19 @@
     // app creates does not inherit them, so the popup must mirror the server:
     // the better of (automatic discount, typed code) wins.
     const autoDiscount = storeOffers.autoDiscount ? Number(storeOffers.autoDiscount.discountAmount) || 0 : 0;
-    const appliedDiscount = Math.max(couponDiscount, autoDiscount);
-    const effectiveSubtotal = Math.max(0, baseOrderTotal - appliedDiscount);
+
+    // Prefer the server quote whenever it matches this cart. It already
+    // applied the discounts, deposit rules and prepaid offer, so the popup
+    // shows exactly what the draft order will charge.
+    const quote = storeOffers.quote;
+    const quoteFresh = quote && Math.abs(Number(quote.subtotal) - baseOrderTotal) < 0.01;
+
+    const appliedDiscount = quoteFresh
+      ? Number(quote.discountAmount) || 0
+      : Math.max(couponDiscount, autoDiscount);
+    const effectiveSubtotal = quoteFresh
+      ? Number(quote.effectiveTotal) || 0
+      : Math.max(0, baseOrderTotal - appliedDiscount);
 
     // Extra Prepaid Discount calculation
     let extraPrepaid = 0;
@@ -1141,8 +1254,12 @@
       extraPrepaid = Math.min(extraPrepaid, effectiveSubtotal);
     }
 
-    const prepaidTotal = Math.max(0, Math.round((effectiveSubtotal - extraPrepaid) * 100) / 100);
-    const totalPrepaidSavings = Math.round((baseOrderTotal - prepaidTotal) * 100) / 100;
+    const prepaidTotal = quoteFresh
+      ? Number(quote.prepaidTotal) || 0
+      : Math.max(0, Math.round((effectiveSubtotal - extraPrepaid) * 100) / 100);
+    const totalPrepaidSavings = quoteFresh
+      ? Number(quote.prepaidSavings) || 0
+      : Math.round((baseOrderTotal - prepaidTotal) * 100) / 100;
 
     // 0. Update Deal Announcement Banner (Slide-down)
     const dealBanner = $("pcod-auto-deal-banner");
@@ -1153,7 +1270,7 @@
           couponDiscount >= autoDiscount && couponDiscount > 0
             ? `Best Deal '${activeCoupon.code}' Auto-Applied`
             : `Automatic Discount${storeOffers.autoDiscount && storeOffers.autoDiscount.title ? ` '${storeOffers.autoDiscount.title}'` : ""} Applied by Shopify`;
-        dealText.innerHTML = `<strong>${source}:</strong> You save <strong>₹${appliedDiscount.toLocaleString("en-IN")}</strong> on this order!`;
+        dealText.innerHTML = `<strong>${source}:</strong> You save <strong>${money(appliedDiscount)}</strong> on this order!`;
         dealBanner.style.display = "flex";
       } else {
         dealBanner.style.display = "none";
@@ -1167,15 +1284,15 @@
     const prepaidTag = $("pcod-prepaid-tag");
     const prepaidBtnLabel = $("pcod-prepaid-btn-label");
 
-    if (prepaidPrice) prepaidPrice.textContent = `₹${prepaidTotal.toLocaleString("en-IN")}`;
+    if (prepaidPrice) prepaidPrice.textContent = money(prepaidTotal);
 
     if (totalPrepaidSavings > 0) {
       if (prepaidOrigPrice) {
-        prepaidOrigPrice.textContent = `₹${baseOrderTotal.toLocaleString("en-IN")}`;
+        prepaidOrigPrice.textContent = money(baseOrderTotal);
         prepaidOrigPrice.style.display = "inline";
       }
       if (prepaidSaveBadge) {
-        prepaidSaveBadge.textContent = `Save ₹${totalPrepaidSavings.toLocaleString("en-IN")}`;
+        prepaidSaveBadge.textContent = `Save ${money(totalPrepaidSavings)}`;
         prepaidSaveBadge.style.display = "inline";
       }
     } else {
@@ -1194,13 +1311,15 @@
 
     if (prepaidBtnLabel) {
       prepaidBtnLabel.textContent = totalPrepaidSavings > 0
-        ? `Pay Full ₹${prepaidTotal.toLocaleString("en-IN")} Online (Save ₹${totalPrepaidSavings.toLocaleString("en-IN")}) →`
-        : `Pay Full ₹${prepaidTotal.toLocaleString("en-IN")} Online →`;
+        ? `Pay Full ${money(prepaidTotal)} Online (Save ${money(totalPrepaidSavings)}) →`
+        : `Pay Full ${money(prepaidTotal)} Online →`;
     }
 
     // 2. Update Option 2 (Partial COD) UI
-    const deposit = calculateDeposit(effectiveSubtotal);
-    const balance = Math.max(0, Math.round((effectiveSubtotal - deposit) * 100) / 100);
+    const deposit = quoteFresh ? Number(quote.deposit) || 0 : calculateDeposit(effectiveSubtotal);
+    const balance = quoteFresh
+      ? Number(quote.balance) || 0
+      : Math.max(0, Math.round((effectiveSubtotal - deposit) * 100) / 100);
 
     const codNow = $("pcod-cod-now");
     const codDoorstep = $("pcod-cod-doorstep");
@@ -1211,22 +1330,22 @@
     const descSaving = $("pcod-cod-desc-saving");
     const codBtnLabel = $("pcod-cod-btn-label");
 
-    if (codNow) codNow.textContent = `₹${deposit.toLocaleString("en-IN")} Now`;
-    if (codDoorstep) codDoorstep.textContent = `+ ₹${balance.toLocaleString("en-IN")} on Delivery`;
-    if (descDeposit) descDeposit.textContent = `₹${deposit.toLocaleString("en-IN")}`;
-    if (descBalance) descBalance.textContent = `₹${balance.toLocaleString("en-IN")}`;
+    if (codNow) codNow.textContent = `${money(deposit)} Now`;
+    if (codDoorstep) codDoorstep.textContent = `+ ${money(balance)} on Delivery`;
+    if (descDeposit) descDeposit.textContent = money(deposit);
+    if (descBalance) descBalance.textContent = money(balance);
 
     if (appliedDiscount > 0) {
       if (codOrigPrice) {
-        codOrigPrice.textContent = `Total ₹${baseOrderTotal.toLocaleString("en-IN")}`;
+        codOrigPrice.textContent = `Total ${money(baseOrderTotal)}`;
         codOrigPrice.style.display = "inline";
       }
       if (codTag) {
-        codTag.textContent = `Save ₹${appliedDiscount.toLocaleString("en-IN")}`;
+        codTag.textContent = `Save ${money(appliedDiscount)}`;
         codTag.style.display = "inline";
       }
       if (descSaving) {
-        descSaving.textContent = ` (Total order reduced from ₹${baseOrderTotal.toLocaleString("en-IN")} to ₹${effectiveSubtotal.toLocaleString("en-IN")})`;
+        descSaving.textContent = ` (Total order reduced from ${money(baseOrderTotal)} to ${money(effectiveSubtotal)})`;
         descSaving.style.display = "inline";
       }
     } else {
@@ -1235,7 +1354,7 @@
       if (descSaving) descSaving.style.display = "none";
     }
 
-    if (codBtnLabel) codBtnLabel.textContent = `Pay ₹${deposit.toLocaleString("en-IN")} Deposit & Confirm COD →`;
+    if (codBtnLabel) codBtnLabel.textContent = `Pay ${money(deposit)} Deposit & Confirm COD →`;
   }
 
   function populateModalUI({ title, image, meta, total, deposit, balance }) {
