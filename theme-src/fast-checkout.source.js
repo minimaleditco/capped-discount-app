@@ -559,7 +559,7 @@
   function calculateDeposit(amount) {
     const ds = storeOffers.depositSettings || { type: "percentage", value: 10 };
     let dep = ds.type === "percentage"
-      ? Math.round((amount * (Number(ds.value) || 10)) / 100)
+      ? Math.round(((amount * (Number(ds.value) || 10)) / 100) * 100) / 100
       : (Number(ds.value) || 100);
     dep = Math.max(1, Math.min(amount, dep));
     return dep;

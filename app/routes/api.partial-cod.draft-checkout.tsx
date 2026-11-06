@@ -397,6 +397,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           tags,
           note,
           customAttributes,
+          // The shopper approved an exact deposit in the popup. Taxes depend on
+          // the address entered later in checkout, so letting Shopify add them
+          // here would charge more than the quoted amount. The doorstep balance
+          // settles the rest of the order.
+          taxExempt: true,
+          // A second code at the deposit checkout would undercut the quote.
+          allowDiscountCodesInCheckout: false,
         },
       },
     });

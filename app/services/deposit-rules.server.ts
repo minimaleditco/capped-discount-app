@@ -95,10 +95,10 @@ export async function evaluateDepositRules(
   if (matchedRule) {
     let deposit = 0;
     if (matchedRule.depositType === "Flat") {
-      deposit = Math.round(Number(matchedRule.depositValue) || 100);
+      deposit = Math.round((Number(matchedRule.depositValue) || 100) * 100) / 100;
     } else if (matchedRule.depositType === "Percentage") {
       const pct = Math.max(1, Math.min(100, Number(matchedRule.depositValue) || 10));
-      deposit = Math.round((totalPrice * pct) / 100);
+      deposit = Math.round(((totalPrice * pct) / 100) * 100) / 100;
     }
 
     deposit = Math.max(1, Math.min(totalPrice, deposit));
@@ -122,9 +122,9 @@ export async function evaluateDepositRules(
 
   if (settings.depositType === "percentage") {
     const pct = Math.max(1, Math.min(100, Number(settings.depositValue) || 10));
-    defaultDeposit = Math.round((totalPrice * pct) / 100);
+    defaultDeposit = Math.round(((totalPrice * pct) / 100) * 100) / 100;
   } else if (settings.depositType === "fixed") {
-    defaultDeposit = Math.round(Number(settings.depositValue) || 100);
+    defaultDeposit = Math.round((Number(settings.depositValue) || 100) * 100) / 100;
   }
 
   if (defaultDeposit <= 0) defaultDeposit = 100;
