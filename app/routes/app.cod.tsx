@@ -537,7 +537,7 @@ export default function PartialCodPage() {
                       label="Deposit Type"
                       options={[
                         { label: "Percentage of Order Subtotal (%)", value: "percentage" },
-                        { label: "Fixed Deposit Amount (₹ / Currency)", value: "fixed" },
+                        { label: "Fixed Deposit Amount (store currency)", value: "fixed" },
                       ]}
                       value={depositType}
                       onChange={(val) => setDepositType(val as any)}
@@ -548,12 +548,12 @@ export default function PartialCodPage() {
                       type="number"
                       value={depositValue}
                       onChange={(val) => setDepositValue(val)}
-                      suffix={depositType === "percentage" ? "%" : "₹"}
+                      suffix={depositType === "percentage" ? "%" : ""}
                       autoComplete="off"
                       helpText={
                         depositType === "percentage"
-                          ? "E.g. 10% on a ₹1,000 order = ₹100 deposit."
-                          : "E.g. Flat ₹100 deposit on any order."
+                          ? "E.g. 10% on a 1,000 order = 100 deposit."
+                          : "E.g. Flat 100 deposit on any order."
                       }
                     />
 

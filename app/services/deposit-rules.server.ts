@@ -104,8 +104,8 @@ export async function evaluateDepositRules(
     deposit = Math.max(1, Math.min(totalPrice, deposit));
     const balance = Math.max(0, Math.round((totalPrice - deposit) * 100) / 100);
     const summary = `Rule [${matchedRule.conditionType}: ${matchedRule.conditionValue}] -> ${
-      matchedRule.depositType === "Flat" ? "₹" : ""
-    }${matchedRule.depositValue}${matchedRule.depositType === "Percentage" ? "%" : ""} Deposit`;
+      matchedRule.depositType === "Flat" ? "Flat " : ""
+    }${matchedRule.depositValue}${matchedRule.depositType === "Percentage" ? "%" : ""} deposit`;
 
     return {
       deposit,
@@ -131,7 +131,7 @@ export async function evaluateDepositRules(
   defaultDeposit = Math.max(1, Math.min(totalPrice, defaultDeposit));
   const defaultBalance = Math.max(0, Math.round((totalPrice - defaultDeposit) * 100) / 100);
   const defaultSummary = `Store Default (${
-    settings.depositType === "fixed" ? "₹" : ""
+    settings.depositType === "fixed" ? "Flat " : ""
   }${settings.depositValue}${settings.depositType === "percentage" ? "%" : ""})`;
 
   return {

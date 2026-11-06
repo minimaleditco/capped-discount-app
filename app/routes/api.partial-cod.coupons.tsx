@@ -185,7 +185,7 @@ async function handleRequest(request: Request) {
       );
     }
 
-    const evaluation = evaluateCoupon(coupons, code, subtotal);
+    const evaluation = evaluateCoupon(coupons, code, subtotal, currency || undefined);
 
     if (!evaluation.valid) {
       return json(

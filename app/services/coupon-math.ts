@@ -80,8 +80,18 @@ export function computeAutoDiscountAmount(
 export function evaluateCoupon(
   coupons: CouponRule[],
   code: string,
-  subtotal: number
+  subtotal: number,
+  currency?: string
 ): CouponEvaluation {
+  const formatMoney = (value: number) => {
+    if (!currency) return String(value);
+    try {
+      return new Intl.NumberFormat("en", { style: "currency", currency }).format(value);
+    } catch {
+      return String(value);
+    }
+  };
+
   const coupon = findCoupon(coupons, code);
   if (!coupon) {
     return { valid: false, discountAmount: 0, error: `Coupon code '${code}' is invalid or expired.` };
@@ -93,7 +103,7 @@ export function evaluateCoupon(
       valid: false,
       coupon,
       discountAmount: 0,
-      error: `Minimum order amount of ₹${coupon.minSubtotal} required for code '${coupon.code}'.`,
+      error: `Minimum order amount of ${formatMoney(coupon.minSubtotal)} required for code '${coupon.code}'.`,
     };
   }
 

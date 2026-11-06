@@ -306,7 +306,7 @@ export default function DiscountsDashboard() {
             >
               <Text as="p" tone="subdued">
                 Offer attractive percentage-based discounts (e.g., 80% off) while safeguarding
-                your profit margins by applying a hard currency cap (e.g., max ₹200).
+                your profit margins by applying a hard currency cap in your store currency.
               </Text>
             </EmptyState>
           </Card>

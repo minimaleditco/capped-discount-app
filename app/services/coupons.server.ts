@@ -199,7 +199,7 @@ export async function fetchLiveDiscounts(shop: string): Promise<LiveDiscounts> {
 
       coupons.push({
         code,
-        title: d.title || `${percentage}% OFF${maxCap ? ` (Max ₹${maxCap})` : ""}`,
+        title: d.title || `${percentage}% OFF${maxCap ? " (capped)" : ""}`,
         type: "percentage",
         value: percentage,
         maxCap: maxCap || undefined,
@@ -223,7 +223,7 @@ export async function fetchLiveDiscounts(shop: string): Promise<LiveDiscounts> {
       } else if (amt) {
         coupons.push({
           code,
-          title: d.title || `Flat ₹${amt} OFF`,
+          title: d.title || "Fixed amount OFF",
           type: "fixed",
           value: parseFloat(amt),
           minSubtotal,
@@ -232,7 +232,7 @@ export async function fetchLiveDiscounts(shop: string): Promise<LiveDiscounts> {
     }
     // BXGY, free-shipping and other discount types are intentionally skipped:
     // their value cannot be expressed as a simple rupee amount here, and
-    // guessing produced bogus "₹0 off" coupons.
+    // guessing produced bogus zero-value coupons.
   }
 
   return { coupons, autoDiscount, lookupFailed: false };

@@ -140,7 +140,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
 
-      const evaluation = evaluateCoupon(coupons, requestedCode, subtotal);
+      const evaluation = evaluateCoupon(coupons, requestedCode, subtotal, currencyCode);
       if (!evaluation.valid) {
         return json(
           { success: false, error: evaluation.error || "This coupon is not valid for this order." },

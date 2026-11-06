@@ -137,6 +137,14 @@ export function formatShopifyOrder(node: any): FormattedPartialCodOrder {
 /**
  * Fetch all Partial COD orders for the store via Shopify GraphQL
  */
+function formatOrderMoney(value: number, currencyCode: string): string {
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency: currencyCode }).format(value);
+  } catch {
+    return `${currencyCode} ${Number(value).toFixed(2)}`;
+  }
+}
+
 export async function getPartialCodOrders(
   admin: any,
   queryFilter = ""
@@ -450,7 +458,7 @@ export async function cancelAndRefundDeposit(
         id: orderId,
         tagsToAdd: [
           "Partial COD Cancelled",
-          `Deposit Refunded: ₹${depositToRefund.toFixed(2)}`,
+          `Deposit Refunded: ${formatOrderMoney(depositToRefund, currency)}`,
         ],
         tagsToRemove: [
           "Partially Paid",
