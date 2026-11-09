@@ -8,6 +8,7 @@ import {
   consumeVerificationToken,
   claimCheckoutRequest,
   completeCheckoutRequest,
+  getCompletedCheckoutRequest,
   releaseCheckoutRequest,
   logAudit,
 } from "../db.server";
@@ -55,6 +56,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { success: false, error: "Missing required parameter: shop" },
         { status: 400, headers: corsHeaders }
       );
+    }
+
+    // A retried request must return the invoice it already created, before
+    // OTP validation (the token is single-use and may already be consumed).
+    const replay = await getCompletedCheckoutRequest(shop, idempotencyKey);
+    if (replay) {
+      try {
+        return json(JSON.parse(replay), { headers: corsHeaders });
+      } catch {
+        // Unreadable stored response: continue and rebuild the quote.
+      }
     }
 
     let admin: any;

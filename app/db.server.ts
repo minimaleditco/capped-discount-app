@@ -1221,6 +1221,32 @@ export async function claimCheckoutRequest(
   }
 }
 
+/**
+ * Reads a finished checkout response without claiming anything. Used before
+ * OTP validation so a retried request still returns the invoice even though
+ * its single-use token was already consumed.
+ */
+export async function getCompletedCheckoutRequest(
+  shop: string,
+  key: string
+): Promise<string | null> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanKey = String(key || "").trim().slice(0, 100);
+  if (!cleanShop || !cleanKey) return null;
+
+  const memory = memoryCheckoutRequests.get(checkoutRequestKey(cleanShop, cleanKey));
+  if (memory?.response) return memory.response;
+
+  try {
+    const existing = await prisma.checkoutRequest.findUnique({
+      where: { shop_key: { shop: cleanShop, key: cleanKey } },
+    });
+    return existing?.response || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function completeCheckoutRequest(
   shop: string,
   key: string,

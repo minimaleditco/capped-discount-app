@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const adminGraphql = vi.fn();
 const getSettings = vi.fn();
+const validateTokenMock = vi.hoisted(() => vi.fn(async () => true));
 
 vi.mock("../app/shopify.server", () => ({
   unauthenticated: {
@@ -57,7 +58,7 @@ vi.mock("../app/db.server", async (importOriginal) => {
   return {
     ...actual,
     getPartialCodSettings: (...args: any[]) => getSettings(...args),
-    validateVerificationToken: vi.fn(async () => true),
+    validateVerificationToken: validateTokenMock,
   };
 });
 
@@ -161,6 +162,8 @@ describe("draft-checkout: server-derived money", () => {
   beforeEach(() => {
     adminGraphql.mockReset();
     getSettings.mockReset();
+    validateTokenMock.mockReset();
+    validateTokenMock.mockResolvedValue(true);
 
     getSettings.mockResolvedValue({
       depositType: "percentage",
@@ -263,6 +266,48 @@ describe("draft-checkout: server-derived money", () => {
     expect(second.status).toBe(200);
     expect(second.body.invoiceUrl).toBe(first.body.invoiceUrl);
     expect(draftCalls()).toBe(callsAfterFirst);
+  });
+
+  it("replays a completed invoice before OTP validation", async () => {
+    const idempotencyKey = `otp-replay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const payload = {
+      shop: SHOP,
+      items: [{ variantId: 111, quantity: 1 }],
+      idempotencyKey,
+    };
+
+    const first = await run(payload);
+    expect(first.status).toBe(200);
+
+    // Now simulate a store with OTP enabled whose token was already consumed:
+    // the replay must not depend on token validation at all.
+    getSettings.mockResolvedValue({
+      depositType: "percentage",
+      depositValue: 10,
+      whatsappEnabled: true,
+      prepaidDiscountEnabled: true,
+      prepaidDiscountType: "percentage",
+      prepaidDiscountValue: 5,
+      gateway: "razorpay",
+    });
+    validateTokenMock.mockResolvedValue(false);
+
+    const callsBefore = adminGraphql.mock.calls.filter(([query]) =>
+      String(query).includes("draftOrderCreate")
+    ).length;
+
+    const second = await run({
+      ...payload,
+      phone: "9876543210",
+      otpToken: "otp_already_used",
+    });
+
+    expect(second.status).toBe(200);
+    expect(second.body.invoiceUrl).toBe(first.body.invoiceUrl);
+    const callsAfter = adminGraphql.mock.calls.filter(([query]) =>
+      String(query).includes("draftOrderCreate")
+    ).length;
+    expect(callsAfter).toBe(callsBefore);
   });
 
   it("refuses an unknown shop instead of falling back to the dev store", async () => {
