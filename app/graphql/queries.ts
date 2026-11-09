@@ -54,6 +54,9 @@ export const GET_DISCOUNT_NODE = `#graphql
  */
 export const GET_APP_DISCOUNTS = `#graphql
   query GetAppDiscounts($first: Int!) {
+    shop {
+      currencyCode
+    }
     discountNodes(first: $first, query: "type:app") {
       nodes {
         id

@@ -20,9 +20,11 @@ import { deriveSetupLifecycle } from "../services/state-machines";
 import { getPartialCodSettings, getDepositRules } from "../db.server";
 import { getPartialCodOrders } from "../services/refunds.server";
 import { GET_APP_DISCOUNTS } from "../graphql/queries";
+import { formatMoney } from "../services/money";
 
 interface HomeLoaderData {
   shop: string;
+  currency: string;
   stats: {
     discountsCount: number;
     codEnabled: boolean;
@@ -47,6 +49,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let totalDepositsCollected = 0;
   let whatsappEnabled = false;
   let metaCapiEnabled = false;
+  let currency = "INR";
 
   try {
     const [settingsRes, rulesRes, ordersRes, discountsRes] = await Promise.allSettled([
@@ -70,6 +73,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (ordersRes.status === "fulfilled" && ordersRes.value) {
       ordersCount = ordersRes.value.length;
+      if (currency === "INR" && ordersRes.value[0]?.currency) {
+        currency = ordersRes.value[0].currency;
+      }
       totalDepositsCollected = ordersRes.value.reduce(
         (sum, o) => sum + (o.depositAmount || 0),
         0
@@ -80,6 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try {
         const dJson: any = await discountsRes.value.json();
         discountsCount = dJson.data?.discountNodes?.nodes?.length || 0;
+        currency = dJson.data?.shop?.currencyCode || currency;
       } catch {}
     }
   } catch (err) {
@@ -88,6 +95,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return json<HomeLoaderData>({
     shop,
+    currency,
     stats: {
       discountsCount,
       codEnabled,
@@ -102,7 +110,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function AppHomePage() {
-  const { shop, stats } = useLoaderData<typeof loader>();
+  const { shop, stats, currency } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
   // Calculate setup completion progress
@@ -262,7 +270,7 @@ export default function AppHomePage() {
                 <InlineStack align="space-between">
                   <span style={{ fontSize: "13px", opacity: 0.85 }}>Deposits Collected:</span>
                   <span style={{ fontSize: "15px", fontWeight: 700, color: "#A7F3D0" }}>
-                    ₹{stats.totalDepositsCollected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    {formatMoney(stats.totalDepositsCollected, currency)}
                   </span>
                 </InlineStack>
               </BlockStack>
@@ -351,7 +359,7 @@ export default function AppHomePage() {
                       </Badge>
                     </InlineStack>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Create promotional percentage discounts (e.g. 50% OFF) strictly capped up to ₹500.
+                      Create promotional percentage discounts (e.g. 50% OFF) with a maximum cap in your store currency.
                     </Text>
                     <Button size="slim" onClick={() => navigate("/app")}>
                       Manage Discounts →
@@ -474,7 +482,7 @@ export default function AppHomePage() {
                   >
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "11px", opacity: 0.75, textTransform: "uppercase" }}>Uncapped Discount</div>
-                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#F87171" }}>-₹1,000</div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#F87171" }}>-{formatMoney(1000, currency)}</div>
                       <div style={{ fontSize: "11px", color: "#FCA5A5" }}>❌ Discount uncapped</div>
                     </div>
                     <div style={{ fontSize: "24px", color: "#6366F1" }}>➔</div>
@@ -487,9 +495,9 @@ export default function AppHomePage() {
                         textAlign: "center",
                       }}
                     >
-                      <div style={{ fontSize: "11px", color: "#34D399", fontWeight: 600 }}>CAPPED AT ₹500</div>
-                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#34D399" }}>-₹500 Max</div>
-                      <div style={{ fontSize: "11px", color: "#A7F3D0" }}>✅ Capped at ₹500</div>
+                      <div style={{ fontSize: "11px", color: "#34D399", fontWeight: 600 }}>CAPPED AT {formatMoney(500, currency)}</div>
+                      <div style={{ fontSize: "20px", fontWeight: 700, color: "#34D399" }}>-{formatMoney(500, currency)} Max</div>
+                      <div style={{ fontSize: "11px", color: "#A7F3D0" }}>✅ Capped at {formatMoney(500, currency)}</div>
                     </div>
                   </div>
 
@@ -573,7 +581,7 @@ export default function AppHomePage() {
                       }}
                     >
                       <div style={{ fontSize: "11px", color: "#A7F3D0" }}>10% PAID ONLINE</div>
-                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>₹108.00</div>
+                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>{formatMoney(108, currency)}</div>
                       <div style={{ fontSize: "11px", color: "#34D399" }}>🔒 UPI / Cards Locked</div>
                     </div>
                     <div style={{ fontSize: "20px", color: "#A7F3D0" }}>+</div>
@@ -587,7 +595,7 @@ export default function AppHomePage() {
                       }}
                     >
                       <div style={{ fontSize: "11px", opacity: 0.8 }}>90% AT DOORSTEP</div>
-                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FEF08A" }}>₹972.00</div>
+                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FEF08A" }}>{formatMoney(972, currency)}</div>
                       <div style={{ fontSize: "11px", opacity: 0.8 }}>📦 Cash / Courier Delivery</div>
                     </div>
                   </div>
@@ -644,8 +652,8 @@ export default function AppHomePage() {
                     </div>
                     <div style={{ width: "1px", height: "40px", background: "rgba(255,255,255,0.2)" }} />
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "11px", opacity: 0.8 }}>Cart &gt; ₹5,000</div>
-                      <div style={{ fontSize: "17px", fontWeight: 700, color: "#FDE68A" }}>Flat ₹500</div>
+                      <div style={{ fontSize: "11px", opacity: 0.8 }}>Cart &gt; {formatMoney(5000, currency)}</div>
+                      <div style={{ fontSize: "17px", fontWeight: 700, color: "#FDE68A" }}>Flat {formatMoney(500, currency)}</div>
                       <div style={{ fontSize: "10.5px", opacity: 0.8 }}>High Cart Value</div>
                     </div>
                     <div style={{ width: "1px", height: "40px", background: "rgba(255,255,255,0.2)" }} />
@@ -665,7 +673,7 @@ export default function AppHomePage() {
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
                       Don&apos;t treat all orders the same. Automatically increase advance deposits for pin codes 
-                      with chronic courier returns, orders over ₹5,000, or heavy/made-to-order product SKUs.
+                      with chronic courier returns, orders over {formatMoney(5000, currency)}, or heavy/made-to-order product SKUs.
                     </Text>
                   </BlockStack>
 
@@ -745,7 +753,7 @@ export default function AppHomePage() {
                       }}
                     >
                       <div style={{ fontSize: "10px", color: "#FDE047", fontWeight: 700 }}>🚚 Out for Delivery</div>
-                      <div style={{ fontSize: "12px", fontWeight: 600 }}>Keep ₹972 ready</div>
+                      <div style={{ fontSize: "12px", fontWeight: 600 }}>Keep {formatMoney(972, currency)} ready</div>
                       <div style={{ fontSize: "9px", opacity: 0.8 }}>Auto-dunning on delivery day</div>
                     </div>
                   </div>
@@ -802,7 +810,7 @@ export default function AppHomePage() {
                   >
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "11px", opacity: 0.8 }}>Browser Pixel Error</div>
-                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#FCA5A5" }}>₹108 Tracked</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#FCA5A5" }}>{formatMoney(108, currency)} Tracked</div>
                       <div style={{ fontSize: "10.5px", opacity: 0.8 }}>Only the deposit is tracked</div>
                     </div>
                     <div style={{ fontSize: "22px", color: "#60A5FA" }}>➔</div>
@@ -816,7 +824,7 @@ export default function AppHomePage() {
                       }}
                     >
                       <div style={{ fontSize: "11px", color: "#93C5FD", fontWeight: 600 }}>SERVER-SIDE CAPI</div>
-                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>₹1,080 Reported</div>
+                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>{formatMoney(1080, currency)} Reported</div>
                       <div style={{ fontSize: "10.5px", color: "#93C5FD" }}>Full Cart Value Preserved</div>
                     </div>
                   </div>
@@ -834,7 +842,7 @@ export default function AppHomePage() {
                       </InlineStack>
                     </InlineStack>
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Standard pixel trackers only see the ₹108 online deposit, so reported revenue
+                      Standard pixel trackers only see the {formatMoney(108, currency)} online deposit, so reported revenue
                       is lower than the order value. Our server-side CAPI sends the full cart value
                       (deposit + COD balance) to Meta.
                     </Text>
@@ -874,7 +882,7 @@ export default function AppHomePage() {
                   >
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "11px", opacity: 0.8 }}>Manual refund</div>
-                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#FCA5A5" }}>₹1,080 Refunded</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#FCA5A5" }}>{formatMoney(1080, currency)} Refunded</div>
                       <div style={{ fontSize: "10.5px", color: "#FCA5A5" }}>Risk of refunding the full total</div>
                     </div>
                     <div style={{ fontSize: "22px", color: "#C084FC" }}>➔</div>
@@ -888,7 +896,7 @@ export default function AppHomePage() {
                       }}
                     >
                       <div style={{ fontSize: "11px", color: "#E9D5FF", fontWeight: 600 }}>DEPOSIT GUARD</div>
-                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>₹108 Online Deposit</div>
+                      <div style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF" }}>{formatMoney(108, currency)} Online Deposit</div>
                       <div style={{ fontSize: "10.5px", color: "#E9D5FF" }}>Restocks + refunds deposit only</div>
                     </div>
                   </div>

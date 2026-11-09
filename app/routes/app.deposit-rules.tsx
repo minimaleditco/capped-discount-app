@@ -31,6 +31,8 @@ import {
   type PartialCodSettings,
 } from "../db.server";
 import { normalizePincodeList, parsePincodeList } from "../services/pincode";
+import { currencySymbol, formatMoney } from "../services/money";
+import { getShopCurrency } from "../services/shop-currency.server";
 
 function formatPincodeTargets(value: string): string {
   const codes = parsePincodeList(value);
@@ -43,6 +45,7 @@ interface LoaderData {
   rules: DepositRuleRecord[];
   settings: PartialCodSettings;
   shop: string;
+  currency: string;
 }
 
 interface ActionData {
@@ -52,18 +55,20 @@ interface ActionData {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop || "unknown";
 
-  const [rules, settings] = await Promise.all([
+  const [rules, settings, currency] = await Promise.all([
     getDepositRules(shop),
     getPartialCodSettings(shop),
+    getShopCurrency(admin),
   ]);
 
   return json<LoaderData>({
     rules,
     settings,
     shop,
+    currency,
   });
 };
 
@@ -157,7 +162,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function DepositRulesPage() {
-  const { rules, settings } = useLoaderData<LoaderData>();
+  const { rules, settings, currency } = useLoaderData<LoaderData>();
   const actionData = useActionData<ActionData>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -231,7 +236,7 @@ export default function DepositRulesPage() {
   const conditionHelpText = useMemo(() => {
     switch (conditionType) {
       case "Cart Value":
-        return "Minimum subtotal threshold to trigger this deposit (e.g. 3000 will match carts ≥ ₹3,000).";
+        return `Minimum subtotal threshold to trigger this deposit (e.g. 3000 will match carts ≥ ${formatMoney(3000, currency)}).`;
       case "SKU":
         return "Enter product SKU or Variant ID (e.g. WATCH-GOLD-01 or 45192837192).";
       case "Pincode":
@@ -239,12 +244,12 @@ export default function DepositRulesPage() {
       default:
         return "";
     }
-  }, [conditionType]);
+  }, [conditionType, currency]);
 
   const conditionLabel = useMemo(() => {
     switch (conditionType) {
       case "Cart Value":
-        return "Minimum Cart Value (₹)";
+        return `Minimum Cart Value (${currencySymbol(currency)})`;
       case "SKU":
         return "Product SKU or Variant ID";
       case "Pincode":
@@ -252,7 +257,7 @@ export default function DepositRulesPage() {
       default:
         return "Condition Value";
     }
-  }, [conditionType]);
+  }, [conditionType, currency]);
 
   const conditionPlaceholder = useMemo(() => {
     switch (conditionType) {
@@ -299,7 +304,7 @@ export default function DepositRulesPage() {
             your rules starting from the <strong>highest Priority</strong>. The first matching rule
             determines the mandatory advance deposit. If no rule matches, your store's default deposit of{" "}
             <strong>
-              {settings.depositType === "fixed" ? `₹${settings.depositValue}` : `${settings.depositValue}%`}
+              {settings.depositType === "fixed" ? formatMoney(settings.depositValue, currency) : `${settings.depositValue}%`}
             </strong>{" "}
             is automatically applied.
           </p>
@@ -351,7 +356,7 @@ export default function DepositRulesPage() {
                         <IndexTable.Cell>
                           <Text variant="bodyMd" fontWeight="semibold" as="span">
                             {rule.conditionType === "Cart Value"
-                              ? `Carts ≥ ₹${Number(rule.conditionValue).toLocaleString("en-IN")}`
+                              ? `Carts ≥ ${formatMoney(Number(rule.conditionValue), currency)}`
                               : rule.conditionType === "SKU"
                               ? `SKU: ${rule.conditionValue}`
                               : `PIN: ${formatPincodeTargets(rule.conditionValue)}`}
@@ -360,7 +365,7 @@ export default function DepositRulesPage() {
                         <IndexTable.Cell>
                           <Text variant="bodyMd" fontWeight="bold" as="span">
                             {rule.depositType === "Flat"
-                              ? `₹${rule.depositValue} Flat`
+                              ? `${formatMoney(rule.depositValue, currency)} Flat`
                               : `${rule.depositValue}% of Cart`}
                           </Text>
                         </IndexTable.Cell>
@@ -431,7 +436,7 @@ export default function DepositRulesPage() {
                 <Select
                   label="Deposit Type"
                   options={[
-                    { label: "Flat Amount (₹)", value: "Flat" },
+                    { label: `Flat Amount (${currencySymbol(currency)})`, value: "Flat" },
                     { label: "Percentage of Cart (%)", value: "Percentage" },
                   ]}
                   value={depositType}
@@ -444,7 +449,7 @@ export default function DepositRulesPage() {
                   type="number"
                   value={depositValue}
                   onChange={setDepositValue}
-                  prefix={depositType === "Flat" ? "₹" : undefined}
+                  prefix={depositType === "Flat" ? currencySymbol(currency) : undefined}
                   suffix={depositType === "Percentage" ? "%" : undefined}
                   autoComplete="off"
                 />

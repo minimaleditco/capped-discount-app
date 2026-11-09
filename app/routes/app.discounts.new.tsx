@@ -34,6 +34,8 @@ import {
 } from "~/graphql/mutations";
 import { GET_FUNCTION_ID } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
+import { currencySymbol as symbolForCurrency } from "../services/money";
+import { getShopCurrency } from "../services/shop-currency.server";
 
 interface ActionData {
   errors?: string[];
@@ -118,7 +120,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const functionId = discountFunction?.id || "";
 
-    return json({ functionId, availableFunctions: functions, queryErrors: result.errors || null });
+    const currency = await getShopCurrency(admin);
+    return json({ functionId, availableFunctions: functions, queryErrors: result.errors || null, currency });
   } catch (error: any) {
     if (error instanceof Response && error.status >= 300 && error.status < 400) throw error;
 
@@ -375,7 +378,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CreateDiscountRoute() {
-  const { functionId } = useLoaderData<typeof loader>();
+  const loaderData = useLoaderData<typeof loader>();
+  const { functionId } = loaderData;
+  const shopCurrency = "currency" in loaderData ? loaderData.currency : "INR";
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -385,11 +390,11 @@ export default function CreateDiscountRoute() {
 
   // Form State
   const [method, setMethod] = useState<DiscountMethod>("code");
-  const [title, setTitle] = useState("80% off up to ₹200");
+  const [title, setTitle] = useState(`80% off up to ${symbolForCurrency(shopCurrency)}200`);
   const [code, setCode] = useState("SAVE80");
   const [percentage, setPercentage] = useState("80");
   const [maxCapAmount, setMaxCapAmount] = useState("200");
-  const [currencyCode, setCurrencyCode] = useState("INR");
+  const [currencyCode, setCurrencyCode] = useState(shopCurrency || "INR");
   const [minSubtotal, setMinSubtotal] = useState("0");
   const [discountMessage, setDiscountMessage] = useState("");
   const [startsAt, setStartsAt] = useState(getNowDateTimeLocal());
@@ -616,7 +621,7 @@ export default function CreateDiscountRoute() {
                     onChange={setTitle}
                     autoComplete="off"
                     error={activeErrors.title}
-                    placeholder="e.g. Monsoon Special: 80% off up to ₹200"
+                    placeholder={`e.g. Monsoon Special: 80% off up to ${currencySymbol}200`}
                     helpText="Internal title displayed on reports and admin discount list."
                   />
                   <TextField

@@ -24,6 +24,8 @@ import { sendToMetaCAPI } from "../services/meta-capi.server";
 import { sendWhatsAppOtp } from "../services/whatsapp.server";
 import { sendSmsOtp } from "../services/sms.server";
 import { generateOtpCode } from "../services/otp";
+import { currencySymbol, formatMoney } from "../services/money";
+import { getShopCurrency } from "../services/shop-currency.server";
 import {
   getPartialCodSettings,
   savePartialCodSettings,
@@ -33,6 +35,7 @@ import {
 interface LoaderData {
   settings: PartialCodSettings;
   shop: string;
+  currency: string;
 }
 
 interface ActionData {
@@ -42,19 +45,23 @@ interface ActionData {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop || "unknown";
 
-  const settings = await getPartialCodSettings(shop);
+  const [settings, currency] = await Promise.all([
+    getPartialCodSettings(shop),
+    getShopCurrency(admin),
+  ]);
 
   return json<LoaderData>({
     settings,
     shop,
+    currency,
   });
 };
 
 export const action = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop || "unknown";
 
   try {
@@ -81,12 +88,13 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
         metaCapiToken,
       });
 
+      const testCurrency = await getShopCurrency(admin);
       const testResult = await sendToMetaCAPI(
         shop,
         {
           orderId: "test_" + Date.now(),
           orderName: "#TEST-PARTIAL-COD",
-          currency: "INR",
+          currency: testCurrency,
           fullValue: 2499,
           depositValue: 250,
           balanceValue: 2249,
@@ -284,7 +292,7 @@ export const action = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function PartialCodPage() {
-  const { settings, shop } = useLoaderData<typeof loader>();
+  const { settings, shop, currency } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -340,8 +348,8 @@ export default function PartialCodPage() {
     settings.availableCoupons ||
       JSON.stringify(
         [
-          { code: "GET150", title: "Flat ₹150 OFF above ₹299", type: "fixed", value: 150, minSubtotal: 299 },
-          { code: "GET200", title: "Flat ₹200 OFF above ₹399", type: "fixed", value: 200, minSubtotal: 399 },
+          { code: "GET150", title: `Flat ${formatMoney(150, currency)} OFF above ${formatMoney(299, currency)}`, type: "fixed", value: 150, minSubtotal: 299 },
+          { code: "GET200", title: `Flat ${formatMoney(200, currency)} OFF above ${formatMoney(399, currency)}`, type: "fixed", value: 200, minSubtotal: 399 },
           { code: "SAVE10", title: "10% OFF on all items", type: "percentage", value: 10, maxCap: 100 },
         ],
         null,
@@ -562,7 +570,7 @@ export default function PartialCodPage() {
                       type="number"
                       value={minOrderSubtotal}
                       onChange={(val) => setMinOrderSubtotal(val)}
-                      prefix="₹"
+                      prefix={currencySymbol(currency)}
                       autoComplete="off"
                       helpText="Orders below this amount will not require an advance deposit (set 0 to apply to all orders)."
                     />
@@ -613,7 +621,7 @@ export default function PartialCodPage() {
 
                   <Banner tone="info">
                     <p>
-                      <strong>Optional — the app works without this.</strong> Why it matters: Standard browser pixels break on Draft Orders or only report the ₹100 online deposit. 
+                      <strong>Optional — the app works without this.</strong> Why it matters: Standard browser pixels break on Draft Orders or only report the {formatMoney(100, currency)} online deposit. 
                       Server-Side CAPI automatically intercepts order creation on Shopify and reports the true full cart value (Deposit + Doorstep Balance) 
                       to Meta Events Manager with SHA-256 hashed customer data for optimal Event Quality Match.
                     </p>
@@ -820,7 +828,7 @@ export default function PartialCodPage() {
                           label="Prepaid Discount Type"
                           options={[
                             { label: "Percentage (%) Off", value: "percentage" },
-                            { label: "Fixed Amount (₹) Off", value: "fixed" },
+                            { label: `Fixed Amount (${currencySymbol(currency)}) Off`, value: "fixed" },
                           ]}
                           value={prepaidDiscountType}
                           onChange={(val) => setPrepaidDiscountType(val as "fixed" | "percentage")}
@@ -831,9 +839,9 @@ export default function PartialCodPage() {
                           value={prepaidDiscountValue}
                           onChange={(val) => setPrepaidDiscountValue(val)}
                           autoComplete="off"
-                          prefix={prepaidDiscountType === "fixed" ? "₹" : undefined}
+                          prefix={prepaidDiscountType === "fixed" ? currencySymbol(currency) : undefined}
                           suffix={prepaidDiscountType === "percentage" ? "%" : undefined}
-                          helpText="e.g. 5 for 5% OFF or 50 for flat ₹50 OFF"
+                          helpText={`e.g. 5 for 5% OFF or 50 for flat ${formatMoney(50, currency)} OFF`}
                         />
                       </FormLayout.Group>
 
@@ -1003,24 +1011,24 @@ export default function PartialCodPage() {
                     Live Calculation Preview
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Example on a ₹{simulation.sampleTotal.toLocaleString()} order:
+                    Example on a {formatMoney(simulation.sampleTotal, currency)} order:
                   </Text>
                   <Divider />
                   <BlockStack gap="200">
                     <InlineStack align="space-between">
                       <Text as="span" tone="subdued">Order Subtotal:</Text>
-                      <Text as="span" fontWeight="bold">₹{simulation.sampleTotal}</Text>
+                      <Text as="span" fontWeight="bold">{formatMoney(simulation.sampleTotal, currency)}</Text>
                     </InlineStack>
                     <InlineStack align="space-between">
                       <Text as="span" tone="success">Online Deposit (Paid):</Text>
                       <Text as="span" fontWeight="bold" tone="success">
-                        ₹{simulation.deposit}
+                        {formatMoney(simulation.deposit, currency)}
                       </Text>
                     </InlineStack>
                     <InlineStack align="space-between">
                       <Text as="span" tone="caution">COD Due on Delivery:</Text>
                       <Text as="span" fontWeight="bold" tone="caution">
-                        ₹{simulation.balance}
+                        {formatMoney(simulation.balance, currency)}
                       </Text>
                     </InlineStack>
                   </BlockStack>

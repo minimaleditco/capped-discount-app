@@ -21,6 +21,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { formatMoney } from "../services/money";
 import { logAudit } from "../db.server";
 import {
   getPartialCodOrders,
@@ -85,6 +86,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function PartialCodOrdersPage() {
   const { orders } = useLoaderData<typeof loader>();
+  // Every order in this list is priced in the store's base currency.
+  const storeCurrency = orders[0]?.currency || "INR";
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -206,14 +209,14 @@ export default function PartialCodOrdersPage() {
 
         <IndexTable.Cell>
           <Text as="span" variant="bodyMd" fontWeight="medium">
-            ₹{order.totalPrice.toFixed(2)}
+            {formatMoney(order.totalPrice, order.currency)}
           </Text>
         </IndexTable.Cell>
 
         <IndexTable.Cell>
           <InlineStack gap="100" blockAlign="center">
             <Text as="span" variant="bodyMd" fontWeight="bold" tone="success">
-              ₹{order.depositAmount.toFixed(2)}
+              {formatMoney(order.depositAmount, order.currency)}
             </Text>
             <Badge tone="success" size="small">
               ONLINE
@@ -224,7 +227,7 @@ export default function PartialCodOrdersPage() {
         <IndexTable.Cell>
           <InlineStack gap="100" blockAlign="center">
             <Text as="span" variant="bodyMd" fontWeight="semibold" tone="subdued">
-              ₹{order.remainingBalance.toFixed(2)}
+              {formatMoney(order.remainingBalance, order.currency)}
             </Text>
             <Badge tone="attention" size="small">
               DOORSTEP
@@ -281,7 +284,7 @@ export default function PartialCodOrdersPage() {
               <p>
                 The online advance deposit of{" "}
                 <strong>
-                  ₹{actionData.result.refundedAmount?.toFixed(2)}
+                  {formatMoney(actionData.result.refundedAmount || 0, actionData.result.currency || storeCurrency)}
                 </strong>{" "}
                 has been refunded to the customer&apos;s original payment method. The order has been marked as cancelled in Shopify, line items were restocked, and order tags were updated.
               </p>
@@ -316,7 +319,7 @@ export default function PartialCodOrdersPage() {
                   Advance Deposits Collected
                 </Text>
                 <Text as="p" variant="headingLg">
-                  ₹{metrics.totalDeposits.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {formatMoney(metrics.totalDeposits, storeCurrency)}
                 </Text>
                 <Text as="span" variant="bodyXs" tone="success">
                   Protected & tracked online
@@ -332,7 +335,7 @@ export default function PartialCodOrdersPage() {
                   Doorstep COD Balance Due
                 </Text>
                 <Text as="p" variant="headingLg">
-                  ₹{metrics.totalBalances.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {formatMoney(metrics.totalBalances, storeCurrency)}
                 </Text>
                 <Text as="span" variant="bodyXs" tone="subdued">
                   Collectable in cash at delivery
@@ -420,7 +423,7 @@ export default function PartialCodOrdersPage() {
           onClose={handleCloseRefundModal}
           title={`Cancel Order & Refund Deposit: ${selectedOrder.name}`}
           primaryAction={{
-            content: `Confirm & Refund ₹${selectedOrder.refundableDeposit.toFixed(2)}`,
+            content: `Confirm & Refund ${formatMoney(selectedOrder.refundableDeposit, selectedOrder.currency)}`,
             onAction: handleConfirmRefund,
             loading: isSubmitting,
             destructive: true,
@@ -438,8 +441,8 @@ export default function PartialCodOrdersPage() {
               <Banner tone="warning">
                 <p>
                   <strong>Deposit Guard:</strong> Only the{" "}
-                  <strong>₹{selectedOrder.refundableDeposit.toFixed(2)}</strong> online advance deposit will be refunded. 
-                  The unpaid doorstep balance of <strong>₹{selectedOrder.remainingBalance.toFixed(2)}</strong> will{" "}
+                  <strong>{formatMoney(selectedOrder.refundableDeposit, selectedOrder.currency)}</strong> online advance deposit will be refunded. 
+                  The unpaid doorstep balance of <strong>{formatMoney(selectedOrder.remainingBalance, selectedOrder.currency)}</strong> will{" "}
                   <strong>NOT</strong> be refunded, preventing accidental financial loss.
                 </p>
               </Banner>
@@ -454,15 +457,15 @@ export default function PartialCodOrdersPage() {
                 </InlineStack>
                 <InlineStack align="space-between">
                   <Text as="span" tone="subdued">Total Order Value:</Text>
-                  <Text as="span" fontWeight="medium">₹{selectedOrder.totalPrice.toFixed(2)}</Text>
+                  <Text as="span" fontWeight="medium">{formatMoney(selectedOrder.totalPrice, selectedOrder.currency)}</Text>
                 </InlineStack>
                 <InlineStack align="space-between">
                   <Text as="span" tone="subdued">Online Deposit (To be refunded):</Text>
-                  <Text as="span" fontWeight="bold" tone="success">₹{selectedOrder.refundableDeposit.toFixed(2)}</Text>
+                  <Text as="span" fontWeight="bold" tone="success">{formatMoney(selectedOrder.refundableDeposit, selectedOrder.currency)}</Text>
                 </InlineStack>
                 <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">Doorstep Balance (Unpaid / Kept at ₹0):</Text>
-                  <Text as="span" fontWeight="bold">₹{selectedOrder.remainingBalance.toFixed(2)}</Text>
+                  <Text as="span" tone="subdued">Doorstep Balance (Unpaid / Kept at 0):</Text>
+                  <Text as="span" fontWeight="bold">{formatMoney(selectedOrder.remainingBalance, selectedOrder.currency)}</Text>
                 </InlineStack>
               </BlockStack>
 

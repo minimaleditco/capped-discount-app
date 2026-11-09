@@ -282,7 +282,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
               if (customerPhone && doorstepBalance > 0) {
                 console.log(
-                  `[WhatsApp Dunning] Triggering Out for Delivery message to ${customerPhone} for order ${order.name} (Balance: ₹${doorstepBalance})`
+                  `[WhatsApp Dunning] Triggering Out for Delivery message to ${customerPhone} for order ${order.name} (Balance: ${order.currencyCode || "INR"} ${doorstepBalance})`
                 );
 
                 const dunningResult = await sendDunningReminder(shop, customerPhone, {

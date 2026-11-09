@@ -5,6 +5,7 @@ import { unauthenticated } from "../shopify.server";
 import { calculateDraftPricing } from "../services/draft-pricing.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
 import { fetchLiveDiscounts } from "../services/coupons.server";
+import { formatMoney } from "../services/money";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,16 +120,7 @@ async function handleRequest(request: Request) {
     const quoteCurrency = pricing?.currencyCode || currency;
     const appliedCodes = pricing?.appliedCodes || [];
 
-    const fmt = (value: number) => {
-      try {
-        return new Intl.NumberFormat("en", {
-          style: "currency",
-          currency: quoteCurrency || "INR",
-        }).format(value);
-      } catch {
-        return value.toFixed(2);
-      }
-    };
+    const fmt = (value: number) => formatMoney(value, quoteCurrency || "INR");
 
     // ---------------------------------------------------------------------
     // Deposit rules run against the Shopify-calculated total, so pincode,

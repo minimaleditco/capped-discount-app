@@ -41,6 +41,7 @@ import {
 } from "~/graphql/mutations";
 import { GET_DISCOUNT_NODE } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
+import { getShopCurrency } from "../services/shop-currency.server";
 
 interface ActionData {
   success?: boolean;
@@ -105,6 +106,7 @@ function toDateTimeLocalString(isoDateString?: string | null): string {
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
+  const shopCurrency = await getShopCurrency(admin);
   const rawParamId = params.id;
 
   if (!rawParamId) {
@@ -168,7 +170,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     let config: CappedDiscountConfig = {
       percentage: 0,
       maxCapAmount: 0,
-      currencyCode: "INR",
+      currencyCode: shopCurrency,
       minSubtotal: 0,
       discountMessage: "",
     };
@@ -195,7 +197,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       endsAt,
       percentage: config.percentage || 0,
       maxCapAmount: config.maxCapAmount || 0,
-      currencyCode: config.currencyCode || "INR",
+      currencyCode: config.currencyCode || shopCurrency,
       minSubtotal: config.minSubtotal || 0,
       discountMessage: config.discountMessage || "",
       combinesWith: {

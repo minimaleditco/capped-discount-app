@@ -14,6 +14,7 @@ import {
 } from "../db.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
 import { calculateDraftPricing } from "../services/draft-pricing.server";
+import { formatMoney } from "../services/money";
 import { allocateProportionally, type RawLineItem } from "../services/pricing.server";
 
 const corsHeaders = {
@@ -131,16 +132,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Every amount written to the draft order is formatted in the store's own
     // currency. Hard-coded rupee symbols made USD/EUR orders look wrong even
     // when the numbers were correct.
-    const fmtMoney = (value: number) => {
-      try {
-        return new Intl.NumberFormat("en", {
-          style: "currency",
-          currency: currencyCode,
-        }).format(value);
-      } catch {
-        return `${currencyCode} ${Number(value).toFixed(2)}`;
-      }
-    };
+    const fmtMoney = (value: number) => formatMoney(value, currencyCode);
 
     if (subtotal <= 0) {
       return json(
