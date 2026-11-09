@@ -167,22 +167,10 @@ export default function PartialCodOrdersPage() {
   const rowMarkup = filteredOrders.map((order, index) => {
     const isCancelledOrRefunded = order.isCancelled || order.isRefunded;
 
-    let statusBadgeTone: "success" | "attention" | "critical" | "info" = "attention";
-    let statusText = "Pending Delivery";
-
-    if (order.isCancelled && order.isRefunded) {
-      statusBadgeTone = "critical";
-      statusText = "Cancelled & Refunded";
-    } else if (order.isCancelled) {
-      statusBadgeTone = "critical";
-      statusText = "Cancelled";
-    } else if (order.isRefunded) {
-      statusBadgeTone = "info";
-      statusText = "Deposit Refunded";
-    } else if (order.displayFulfillmentStatus === "FULFILLED") {
-      statusBadgeTone = "success";
-      statusText = "Delivered";
-    }
+    // The lifecycle machine in app/services/state-machines.ts owns this label
+    // and tone, so the list, refunds and analytics can never disagree.
+    const statusBadgeTone = order.lifecycleTone;
+    const statusText = order.lifecycleLabel;
 
     return (
       <IndexTable.Row id={order.id} key={order.id} position={index}>

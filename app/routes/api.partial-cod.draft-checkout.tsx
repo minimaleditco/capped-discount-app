@@ -90,6 +90,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const couponCode = pricing.appliedCodes[0] || "";
     const discountSource = couponCode ? `code ${couponCode}` : "Shopify discount";
 
+    // Shopify silently ignores codes it does not accept. Rejecting here keeps
+    // checkout consistent with the popup, which already showed the error.
+    if (
+      requestedCode &&
+      !pricing.appliedCodes.some(
+        (value) => value.toUpperCase() === requestedCode.toUpperCase()
+      )
+    ) {
+      return json(
+        { success: false, error: "This coupon code is invalid or not applicable to this order." },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     // Every amount written to the draft order is formatted in the store's own
     // currency. Hard-coded rupee symbols made USD/EUR orders look wrong even
     // when the numbers were correct.

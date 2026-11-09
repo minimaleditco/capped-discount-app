@@ -101,6 +101,41 @@ function variantResponse(price = "540.00") {
   };
 }
 
+function calculatedResponse(input: any) {
+  const lines = Array.isArray(input?.lineItems) ? input.lineItems : [];
+  const quantity = lines.reduce((sum: number, line: any) => sum + (Number(line.quantity) || 0), 0) || 1;
+  const catalog = 540 * quantity;
+  const codes = Array.isArray(input?.discountCodes) ? input.discountCodes : [];
+  const hasFestive = codes.some((code: string) => String(code).toUpperCase() === "FESTIVE50");
+  const discount = hasFestive ? Math.min(catalog * 0.5, 600) : 0;
+  const total = catalog - discount;
+  return {
+    json: async () => ({
+      data: {
+        draftOrderCalculate: {
+          calculatedDraftOrder: {
+            currencyCode: "INR",
+            discountCodes: hasFestive ? ["FESTIVE50"] : [],
+            totalPriceSet: { shopMoney: { amount: String(total) } },
+            totalDiscountsSet: { shopMoney: { amount: String(discount) } },
+            totalTaxSet: { shopMoney: { amount: "0" } },
+            totalShippingPriceSet: { shopMoney: { amount: "0" } },
+            lineItems: [
+              {
+                quantity,
+                variant: { id: "gid://shopify/ProductVariant/111" },
+                originalTotalSet: { shopMoney: { amount: String(catalog) } },
+                discountedTotalSet: { shopMoney: { amount: String(total) } },
+              },
+            ],
+          },
+          userErrors: [],
+        },
+      },
+    }),
+  };
+}
+
 function makeRequest(payload: Record<string, unknown>) {
   return new Request("https://app.example.com/api/partial-cod/draft-checkout", {
     method: "POST",
@@ -137,9 +172,12 @@ describe("draft-checkout: server-derived money", () => {
       gateway: "razorpay",
     });
 
-    adminGraphql.mockImplementation(async (query: string) =>
-      String(query).includes("draftOrderCreate") ? draftOrderResponse() : variantResponse()
-    );
+    adminGraphql.mockImplementation(async (query: string, options: any) => {
+      const text = String(query);
+      if (text.includes("draftOrderCreate")) return draftOrderResponse();
+      if (text.includes("draftOrderCalculate")) return calculatedResponse(options?.variables?.input || {});
+      return variantResponse();
+    });
   });
 
   it("ignores a tampered client price and uses the Shopify price", async () => {
@@ -189,7 +227,7 @@ describe("draft-checkout: server-derived money", () => {
     expect(status).toBe(200);
     // 50% of 540 = 270 (under the 600 cap)
     expect(body.couponCode).toBe("FESTIVE50");
-    expect(body.couponDiscount).toBe(270);
+    expect(body.appliedDiscount).toBe(270);
     const input = lastDraftInput();
     expect(JSON.stringify(input)).not.toContain("99999");
   });

@@ -223,7 +223,7 @@ async function handleRequest(request: Request) {
         {
           success: false,
           valid: false,
-          error: "This code is not valid for this order.",
+          error: "This coupon code is invalid or not applicable to this order.",
           ...baseResponse,
         },
         { status: 400, headers: corsHeaders }

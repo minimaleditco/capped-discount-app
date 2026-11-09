@@ -16,6 +16,7 @@ import {
   ProgressBar,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { deriveSetupLifecycle } from "../services/state-machines";
 import { getPartialCodSettings, getDepositRules } from "../db.server";
 import { getPartialCodOrders } from "../services/refunds.server";
 import { GET_APP_DISCOUNTS } from "../graphql/queries";
@@ -110,7 +111,8 @@ export default function AppHomePage() {
     stats.codEnabled,
     stats.rulesCount > 0,
   ].filter(Boolean).length;
-  const progressPercent = Math.round((completedCoreSteps / 3) * 100);
+  const setup = deriveSetupLifecycle(completedCoreSteps, 3);
+  const progressPercent = setup.percent;
   const storeHandle = shop.replace(/\.myshopify\.com$/i, "");
   const themeEditorUrl = `https://admin.shopify.com/store/${storeHandle}/themes/current/editor?context=apps`;
 

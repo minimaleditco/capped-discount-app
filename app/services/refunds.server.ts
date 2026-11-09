@@ -1,4 +1,9 @@
 import { prisma, normalizeShopDomain } from "../db.server";
+import {
+  deriveDepositLifecycle,
+  type DepositLifecycleState,
+  type StateTone,
+} from "./state-machines";
 
 export interface FormattedPartialCodOrder {
   id: string;
@@ -21,6 +26,10 @@ export interface FormattedPartialCodOrder {
   isCancelled: boolean;
   isRefunded: boolean;
   canRefund: boolean;
+  /** Named lifecycle state derived by the shared state machine. */
+  lifecycleState: DepositLifecycleState;
+  lifecycleLabel: string;
+  lifecycleTone: StateTone;
   refundableDeposit: number;
   parentTransactionId?: string;
   gateway?: string;
@@ -101,6 +110,13 @@ export function formatShopifyOrder(node: any): FormattedPartialCodOrder {
   const refundableDeposit = Math.max(0, Math.round((depositPaid - totalRefunded) * 100) / 100);
   const canRefund = !isRefunded && refundableDeposit > 0 && Boolean(successfulTx);
 
+  const lifecycle = deriveDepositLifecycle({
+    cancelledAt: node.cancelledAt,
+    totalRefunded,
+    depositAmount: depositPaid,
+    fulfillmentStatus: node.displayFulfillmentStatus,
+  });
+
   let phone = node.customer?.phone || "";
   if (!phone) {
     const phoneAttr = customAttrs.find((a) => a.key === "Verified Mobile");
@@ -128,6 +144,9 @@ export function formatShopifyOrder(node: any): FormattedPartialCodOrder {
     isCancelled,
     isRefunded,
     canRefund,
+    lifecycleState: lifecycle.state,
+    lifecycleLabel: lifecycle.label,
+    lifecycleTone: lifecycle.tone,
     refundableDeposit,
     parentTransactionId: successfulTx?.id,
     gateway: successfulTx?.gateway || "shopify_payments",

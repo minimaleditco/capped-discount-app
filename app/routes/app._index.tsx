@@ -19,6 +19,7 @@ import {
 import type { CappedDiscountConfig, DiscountMethod } from "~/types/discount";
 import { GET_APP_DISCOUNTS } from "~/graphql/queries";
 import { authenticate } from "../shopify.server";
+import { deriveDiscountLifecycle } from "../services/state-machines";
 
 export interface SerializedDiscountItem {
   id: string;
@@ -177,19 +178,12 @@ export default function DiscountsDashboard() {
   const isLoading = navigation.state === "loading";
 
   const getStatusBadge = (status: string) => {
-    const normalized = status.toUpperCase();
-    switch (normalized) {
-      case "ACTIVE":
-        return <Badge tone="success">Active</Badge>;
-      case "SCHEDULED":
-        return <Badge tone="info">Scheduled</Badge>;
-      case "EXPIRED":
-        return <Badge tone="warning">Expired</Badge>;
-      case "DEACTIVATED":
-        return <Badge>Deactivated</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
+    const lifecycle = deriveDiscountLifecycle(status);
+    return lifecycle.tone ? (
+      <Badge tone={lifecycle.tone}>{lifecycle.label}</Badge>
+    ) : (
+      <Badge>{lifecycle.label}</Badge>
+    );
   };
 
   const getMethodBadge = (method: DiscountMethod) => {
