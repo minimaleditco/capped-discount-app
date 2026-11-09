@@ -1167,7 +1167,11 @@ export type CheckoutClaim =
  * - `pending`     — another attempt is in flight; ask the caller to retry.
  * - `unavailable` — no key, or storage failed; proceed without protection.
  */
-export async function claimCheckoutRequest(shop: string, key: string): Promise<CheckoutClaim> {
+export async function claimCheckoutRequest(
+  shop: string,
+  key: string,
+  retriedAfterStale = false
+): Promise<CheckoutClaim> {
   const cleanShop = normalizeShopDomain(shop);
   const cleanKey = String(key || "").trim().slice(0, 100);
   if (!cleanShop || !cleanKey) return { status: "unavailable" };
@@ -1189,6 +1193,17 @@ export async function claimCheckoutRequest(shop: string, key: string): Promise<C
         where: { shop_key: { shop: cleanShop, key: cleanKey } },
       });
       if (existing?.response) return { status: "completed", response: existing.response };
+
+      // A claim older than two minutes is stale: the process that took it
+      // died before finishing. Let the retry take it over instead of leaving
+      // the shopper stuck on 409 until retention runs.
+      const stale = existing ? Date.now() - existing.createdAt.getTime() > 2 * 60 * 1000 : false;
+      if (stale && !retriedAfterStale) {
+        await prisma.checkoutRequest
+          .delete({ where: { shop_key: { shop: cleanShop, key: cleanKey } } })
+          .catch(() => undefined);
+        return claimCheckoutRequest(cleanShop, cleanKey, true);
+      }
       return { status: "pending" };
     }
 
@@ -1198,7 +1213,9 @@ export async function claimCheckoutRequest(shop: string, key: string): Promise<C
     const memoryKey = checkoutRequestKey(cleanShop, cleanKey);
     const existing = memoryCheckoutRequests.get(memoryKey);
     if (existing?.response) return { status: "completed", response: existing.response };
-    if (existing) return { status: "pending" };
+    if (existing && Date.now() - existing.createdAt < 2 * 60 * 1000) {
+      return { status: "pending" };
+    }
     memoryCheckoutRequests.set(memoryKey, { createdAt: Date.now() });
     return { status: "claimed" };
   }
