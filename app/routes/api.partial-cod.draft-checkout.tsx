@@ -5,6 +5,10 @@ import {
   getPartialCodSettings,
   normalizeShopDomain,
   validateVerificationToken,
+  consumeVerificationToken,
+  claimCheckoutRequest,
+  completeCheckoutRequest,
+  releaseCheckoutRequest,
   logAudit,
 } from "../db.server";
 import { evaluateDepositRules } from "../services/deposit-rules.server";
@@ -30,14 +34,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  let claimed = false;
+  let claimedShop = "";
+  let idempotencyKey = "";
+
   try {
     const body = await request.json();
+    idempotencyKey = String(body.idempotencyKey || "")
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 100);
 
     // ---------------------------------------------------------------------
     // 1. Resolve the shop. An unknown shop must never fall back to a
     //    hardcoded dev store, otherwise production traffic lands there.
     // ---------------------------------------------------------------------
     const shop = normalizeShopDomain(body.shop);
+    claimedShop = shop;
     if (!shop) {
       return json(
         { success: false, error: "Missing required parameter: shop" },
@@ -207,6 +219,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ruleSummary = evaluation.ruleSummary;
       matchedRuleType = evaluation.matchedRule?.conditionType ?? null;
     }
+
+    // ---------------------------------------------------------------------
+    // 5b. Idempotency. A retried request (timeout, double submit, back button)
+    // must return the invoice that was already created, not a second one.
+    // ---------------------------------------------------------------------
+    const claim = await claimCheckoutRequest(shop, idempotencyKey);
+    if (claim.status === "completed") {
+      try {
+        return json(JSON.parse(claim.response), { headers: corsHeaders });
+      } catch {
+        // Stored response is unreadable: fall through and create a fresh draft.
+      }
+    }
+    if (claim.status === "pending") {
+      return json(
+        {
+          success: false,
+          error: "This checkout is already being prepared. Please try again in a moment.",
+        },
+        { status: 409, headers: corsHeaders }
+      );
+    }
+    claimed = claim.status === "claimed";
 
     // ---------------------------------------------------------------------
     // 6. Build the draft order with a server-computed price override.
@@ -383,6 +418,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const resJson: any = await response.json();
 
     if (resJson.data?.draftOrderCreate?.userErrors?.length > 0) {
+      if (claimed) await releaseCheckoutRequest(shop, idempotencyKey);
       const errMsg = resJson.data.draftOrderCreate.userErrors.map((e: any) => e.message).join(", ");
       return json({ success: false, error: errMsg }, { status: 400, headers: corsHeaders });
     }
@@ -392,28 +428,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await logAudit(shop, "draft_checkout.create", draftOrder.name || "");
     }
     if (!draftOrder?.invoiceUrl) {
+      if (claimed) await releaseCheckoutRequest(shop, idempotencyKey);
       return json(
         { success: false, error: "Failed to generate Shopify checkout URL." },
         { status: 500, headers: corsHeaders }
       );
     }
 
-    return json(
-      {
-        success: true,
+    const successBody = {
+      success: true,
+      invoiceUrl: draftOrder.invoiceUrl,
+      draftOrderId: draftOrder.id,
+      draftOrderName: draftOrder.name,
+      deposit: onlineAmount,
+      balance,
+      total: subtotal,
+      currency: currencyCode,
+      couponCode: couponCode || null,
+      appliedDiscount,
+    };
+
+    if (claimed) {
+      await completeCheckoutRequest(shop, idempotencyKey, {
         invoiceUrl: draftOrder.invoiceUrl,
         draftOrderId: draftOrder.id,
-        draftOrderName: draftOrder.name,
-        deposit: onlineAmount,
-        balance,
-        total: subtotal,
-        currency: currencyCode,
-        couponCode: couponCode || null,
-        appliedDiscount,
-      },
-      { headers: corsHeaders }
-    );
+        response: JSON.stringify(successBody),
+      });
+    }
+
+    // The verification token is single-use: burn it only now that an invoice
+    // exists. A failed attempt above leaves it usable for a retry.
+    if (!isPrepaid && settings.whatsappEnabled && otpToken) {
+      await consumeVerificationToken(shop, customerPhone, otpToken);
+    }
+
+    return json(successBody, { headers: corsHeaders });
   } catch (error: any) {
+    if (claimed) await releaseCheckoutRequest(claimedShop, idempotencyKey);
     console.error("[Draft Checkout Error]:", error);
     return json(
       {

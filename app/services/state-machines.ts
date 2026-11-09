@@ -101,12 +101,20 @@ export function canTransitionDeposit(
  * unverified, and the token TTL once verified. The `verified` flag decides how
  * to read it. This function applies that rule once, so callers never have to.
  */
-export type OtpLifecycleState = "IDLE" | "PENDING" | "VERIFIED" | "EXPIRED" | "LOCKED";
+export type OtpLifecycleState =
+  | "IDLE"
+  | "PENDING"
+  | "VERIFIED"
+  | "CONSUMED"
+  | "EXPIRED"
+  | "LOCKED";
 
 export interface OtpSessionSnapshot {
   verified: boolean;
   attempts: number;
   expiresAt: number;
+  /** Set once the token has been used to create a draft order. */
+  consumedAt?: number | null;
 }
 
 export function deriveOtpLifecycle(
@@ -115,6 +123,8 @@ export function deriveOtpLifecycle(
   maxAttempts = 5
 ): OtpLifecycleState {
   if (!session) return "IDLE";
+  // A consumed token is terminal, regardless of the verified flag or TTL.
+  if (session.consumedAt) return "CONSUMED";
   if (session.verified) return session.expiresAt > now ? "VERIFIED" : "EXPIRED";
   // Matches checkOtpSession(): a burned code reports as locked even if it has
   // also expired, so the shopper is told to request a new one.
@@ -126,7 +136,8 @@ export function deriveOtpLifecycle(
 export const OTP_TRANSITIONS: Record<OtpLifecycleState, OtpLifecycleState[]> = {
   IDLE: ["PENDING"],
   PENDING: ["VERIFIED", "EXPIRED", "LOCKED"],
-  VERIFIED: ["EXPIRED"],
+  VERIFIED: ["CONSUMED", "EXPIRED"],
+  CONSUMED: [],
   EXPIRED: ["PENDING"],
   LOCKED: ["PENDING"],
 };

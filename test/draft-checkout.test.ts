@@ -242,6 +242,29 @@ describe("draft-checkout: server-derived money", () => {
     expect(body.total).toBe(1080);
   });
 
+  it("returns the same invoice for a retried request with the same key", async () => {
+    const idempotencyKey = `test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const payload = {
+      shop: SHOP,
+      items: [{ variantId: 111, quantity: 1 }],
+      idempotencyKey,
+    };
+
+    const first = await run(payload);
+    expect(first.status).toBe(200);
+    expect(first.body.success).toBe(true);
+
+    const draftCalls = () =>
+      adminGraphql.mock.calls.filter(([query]) => String(query).includes("draftOrderCreate")).length;
+    const callsAfterFirst = draftCalls();
+    expect(callsAfterFirst).toBe(1);
+
+    const second = await run(payload);
+    expect(second.status).toBe(200);
+    expect(second.body.invoiceUrl).toBe(first.body.invoiceUrl);
+    expect(draftCalls()).toBe(callsAfterFirst);
+  });
+
   it("refuses an unknown shop instead of falling back to the dev store", async () => {
     const { status, body } = await run({
       shop: "",

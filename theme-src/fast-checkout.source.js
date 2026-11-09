@@ -681,6 +681,22 @@
 
   let baseOrderTotal = 0;
   let activeCoupon = null;
+
+  // One key per checkout intent. Retries reuse it so the server can return the
+  // invoice it already created instead of creating a second draft order.
+  let checkoutKey = "";
+  function getCheckoutKey() {
+    if (checkoutKey) return checkoutKey;
+    try {
+      checkoutKey =
+        window.crypto && window.crypto.randomUUID
+          ? window.crypto.randomUUID()
+          : `pcod_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    } catch (e) {
+      checkoutKey = `pcod_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return checkoutKey;
+  }
   // Coupons come exclusively from the merchant's live Shopify discounts.
   // Hardcoded fallbacks (DIWALI50/SAVE80/SAVE299) used to be auto-applied here
   // and then honoured by the server, granting discounts that did not exist.
@@ -1379,6 +1395,7 @@
 
   function populateModalUI({ title, image, meta, total, deposit, balance }) {
     baseOrderTotal = total;
+    checkoutKey = "";
 
     // Immediately evaluate and auto-apply best deal from store offers
     if (!activeCoupon || activeCoupon.isAuto) {
@@ -1786,6 +1803,7 @@
         payload = {
           shop,
           currency: storeCurrency,
+          idempotencyKey: getCheckoutKey(),
           isPrepaid: !!isPrepaid,
           prepaidDiscount: prepaidDiscount || 0,
           deposit: calculatedDeposit,
@@ -1808,6 +1826,7 @@
         payload = {
           shop,
           currency: storeCurrency,
+          idempotencyKey: getCheckoutKey(),
           isPrepaid: !!isPrepaid,
           prepaidDiscount: prepaidDiscount || 0,
           deposit: calculatedDeposit,

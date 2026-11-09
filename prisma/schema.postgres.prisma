@@ -34,20 +34,20 @@ model Session {
 }
 
 model PartialCodSettings {
-  shop              String   @id
-  enabled           Boolean  @default(true)
-  depositType       String   @default("percentage")
-  depositValue      Float    @default(10)
-  minOrderSubtotal  Float    @default(0)
-  gateway           String   @default("simulator")
-  apiKey            String?  @default("")
-  apiSecret         String?  @default("")
-  autoCancelMinutes Int      @default(30)
-  metaPixelId       String?  @default("")
-  metaCapiToken     String?  @default("")
-  whatsappEnabled   Boolean  @default(false)
-  whatsappProvider  String   @default("simulator")
-  whatsappApiKey    String?  @default("")
+  shop                   String   @id
+  enabled                Boolean  @default(true)
+  depositType            String   @default("percentage")
+  depositValue           Float    @default(10)
+  minOrderSubtotal       Float    @default(0)
+  gateway                String   @default("simulator")
+  apiKey                 String?  @default("")
+  apiSecret              String?  @default("")
+  autoCancelMinutes      Int      @default(30)
+  metaPixelId            String?  @default("")
+  metaCapiToken          String?  @default("")
+  whatsappEnabled        Boolean  @default(false)
+  whatsappProvider       String   @default("simulator")
+  whatsappApiKey         String?  @default("")
   whatsappApiUrl         String?  @default("")
   whatsappSender         String?  @default("")
   otpChannel             String   @default("sms")
@@ -60,7 +60,7 @@ model PartialCodSettings {
   smsSenderId            String?  @default("")
   availableCoupons       String?  @default("[]")
   createdAt              DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  updatedAt              DateTime @updatedAt
 }
 
 model PartialCodDeposit {
@@ -111,18 +111,31 @@ model DiscountSavings {
 }
 
 model OtpSession {
-  id        String   @id @default(cuid())
-  shop      String
-  phone     String
-  otpCode   String
-  token     String   @unique
-  verified  Boolean  @default(false)
-  attempts  Int      @default(0)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  shop       String
+  phone      String
+  otpCode    String
+  token      String    @unique
+  verified   Boolean   @default(false)
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@index([shop, phone])
   @@index([token])
+}
+
+model CheckoutRequest {
+  key          String
+  shop         String
+  invoiceUrl   String?
+  draftOrderId String?
+  response     String?
+  createdAt    DateTime @default(now())
+
+  @@id([shop, key])
+  @@index([createdAt])
 }
 
 model AuditLog {

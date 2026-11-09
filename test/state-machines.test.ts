@@ -94,6 +94,15 @@ describe("OTP session lifecycle", () => {
     );
   });
 
+  it("marks a used token as consumed even while it would still be valid", () => {
+    expect(
+      deriveOtpLifecycle(
+        { verified: false, attempts: 0, expiresAt: now + 999999, consumedAt: now },
+        now
+      )
+    ).toBe("CONSUMED");
+  });
+
   it("expires a verified token after its TTL", () => {
     expect(deriveOtpLifecycle({ verified: true, attempts: 0, expiresAt: now }, now)).toBe(
       "EXPIRED"
@@ -102,6 +111,8 @@ describe("OTP session lifecycle", () => {
 
   it("allows only legal transitions", () => {
     expect(canTransitionOtp("PENDING", "VERIFIED")).toBe(true);
+    expect(canTransitionOtp("VERIFIED", "CONSUMED")).toBe(true);
+    expect(canTransitionOtp("CONSUMED", "PENDING")).toBe(false);
     expect(canTransitionOtp("VERIFIED", "PENDING")).toBe(false);
     expect(canTransitionOtp("EXPIRED", "PENDING")).toBe(true);
   });

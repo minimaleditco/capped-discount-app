@@ -27,7 +27,7 @@ React. `test/state-machines.test.ts` covers every transition.
 | # | Machine | Stored in | States | Decision |
 |---|---|---|---|---|
 | 1 | Deposit order lifecycle | Shopify order fields + tags | 6 | **Formalized** |
-| 2 | OTP verification session | `OtpSession` row + memory fallback | 5 | **Formalized** |
+| 2 | OTP verification session | `OtpSession` row + memory fallback | 6 | **Formalized** |
 | 3 | Discount lifecycle | Shopify discount `status` | 5 | **Mapped** |
 | 4 | Setup / onboarding | Derived from 3 counters | 3 | **Formalized** |
 | 5 | Storefront checkout flow | Widget local variables | 7 | Documented only |
@@ -93,10 +93,10 @@ flip the state.
 fallback used when the database is unavailable.
 
 ```
-IDLE ──send──▶ PENDING ──verify──▶ VERIFIED ──TTL──▶ EXPIRED
-                 │  │
-        attempts │  └──TTL──▶ EXPIRED ──send──▶ PENDING
-        exhausted▼
+IDLE ──send──▶ PENDING ──verify──▶ VERIFIED ──used──▶ CONSUMED (terminal)
+                 │  │                     │
+        attempts │  └──TTL──▶ EXPIRED ◀───┘ TTL
+        exhausted▼              │
               LOCKED ──send (new code)──▶ PENDING
 ```
 
@@ -107,10 +107,12 @@ properly needs a schema change (`codeExpiresAt` + `verifiedExpiresAt`), which is
 not worth the migration risk during review. The derivation function applies the
 rule once so callers cannot get it wrong.
 
-**Missing transition — `CONSUMED`:** a verified token is currently reusable
-until it expires. If draft-order creation succeeds, the token should be burned;
-if creation fails, it must stay valid for a retry. This is the next safe
-addition (mark consumed only after `draftOrderCreate` returns an invoice URL).
+**`CONSUMED`:** a verified token is single-use. It is burned only after
+`draftOrderCreate` returns an invoice URL. If pricing, OTP validation or draft
+creation fails, the token stays usable so the shopper can retry. The draft
+checkout also reuses the same idempotency key for that retry, so a failure after
+the invoice was created returns the existing invoice instead of asking for a new
+code.
 
 ---
 
@@ -178,8 +180,9 @@ IDLE
 
 **Gaps**
 
-- No idempotency key: a retried HTTP request (not a second click) can create two
-  invoices.
+- ~~No idempotency key~~ — the widget now generates one key per modal open and
+  reuses it for retries; the server stores the finished response in
+  `CheckoutRequest` for 24 hours and returns it on a replay.
 - Quantity is capped at 99 server-side.
 - Presentment currency is not passed to the draft order.
 

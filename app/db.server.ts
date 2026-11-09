@@ -639,6 +639,7 @@ export async function deleteShopData(shop: string): Promise<boolean> {
       prisma.discountSavings.deleteMany({ where: { shop: cleanShop } }),
       prisma.partialCodSettings.deleteMany({ where: { shop: cleanShop } }),
       prisma.session.deleteMany({ where: { shop: cleanShop } }),
+      prisma.checkoutRequest.deleteMany({ where: { shop: cleanShop } }),
     ]);
     return true;
   } catch (err) {
@@ -902,6 +903,7 @@ export interface OtpSessionRecord {
   verified: boolean;
   attempts: number;
   expiresAt: number;
+  consumedAt?: number;
   createdAt: number;
 }
 
@@ -1055,6 +1057,7 @@ export async function validateVerificationToken(
       session &&
       session.shop === cleanShop &&
       session.phone === cleanPh &&
+      !session.consumedAt &&
       isVerificationTokenUsable(
         { verified: session.verified, expiresAt: session.expiresAt.getTime() },
         now
@@ -1071,6 +1074,178 @@ export async function validateVerificationToken(
     mem &&
       mem.shop === cleanShop &&
       mem.phone === cleanPh &&
+      !mem.consumedAt &&
       isVerificationTokenUsable(mem, now)
   );
+}
+
+/**
+ * Burns a verified OTP token. Called only after the draft order (and therefore
+ * the deposit invoice) was created successfully, so a failed attempt leaves the
+ * shopper able to retry with the same code.
+ */
+export async function consumeVerificationToken(
+  shop: string,
+  phone: string,
+  token: string
+): Promise<boolean> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanPh = String(phone || "").replace(/[^0-9]/g, "");
+  const now = Date.now();
+  if (!cleanShop || !cleanPh || !token) return false;
+
+  let consumed = false;
+
+  try {
+    const session = await prisma.otpSession.findUnique({ where: { token } });
+    if (
+      session &&
+      session.shop === cleanShop &&
+      session.phone === cleanPh &&
+      !session.consumedAt &&
+      isVerificationTokenUsable(
+        { verified: session.verified, expiresAt: session.expiresAt.getTime() },
+        now
+      )
+    ) {
+      await prisma.otpSession.update({
+        where: { id: session.id },
+        data: { consumedAt: new Date(now), verified: false },
+      });
+      consumed = true;
+    }
+  } catch (err) {
+    console.warn("[DB consumeVerificationToken]:", err instanceof Error ? err.message : err);
+  }
+
+  const mem = memoryOtpSessions.get(token);
+  if (
+    mem &&
+    mem.shop === cleanShop &&
+    mem.phone === cleanPh &&
+    !mem.consumedAt &&
+    isVerificationTokenUsable(mem, now)
+  ) {
+    mem.consumedAt = now;
+    mem.verified = false;
+    consumed = true;
+  }
+  if (consumed) memoryOtpSessions.delete(token);
+
+  return consumed;
+}
+
+// ============================================================================
+// Draft checkout idempotency
+// ============================================================================
+
+const CHECKOUT_REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface MemoryCheckoutRequest {
+  response?: string;
+  invoiceUrl?: string;
+  createdAt: number;
+}
+
+const memoryCheckoutRequests = new Map<string, MemoryCheckoutRequest>();
+
+function checkoutRequestKey(shop: string, key: string): string {
+  return `${shop}::${key}`;
+}
+
+export type CheckoutClaim =
+  | { status: "claimed" }
+  | { status: "pending" }
+  | { status: "completed"; response: string }
+  | { status: "unavailable" };
+
+/**
+ * Claims an idempotency key before creating a draft order.
+ *
+ * - `claimed`     — this request owns the key; proceed.
+ * - `completed`   — a previous attempt succeeded; return the stored response.
+ * - `pending`     — another attempt is in flight; ask the caller to retry.
+ * - `unavailable` — no key, or storage failed; proceed without protection.
+ */
+export async function claimCheckoutRequest(shop: string, key: string): Promise<CheckoutClaim> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanKey = String(key || "").trim().slice(0, 100);
+  if (!cleanShop || !cleanKey) return { status: "unavailable" };
+
+  try {
+    await prisma.checkoutRequest.create({ data: { shop: cleanShop, key: cleanKey } });
+
+    // Opportunistic retention: an idempotency key is only useful for a retry
+    // window, not forever.
+    prisma.checkoutRequest
+      .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - CHECKOUT_REQUEST_TTL_MS) } } })
+      .catch(() => undefined);
+
+    memoryCheckoutRequests.set(checkoutRequestKey(cleanShop, cleanKey), { createdAt: Date.now() });
+    return { status: "claimed" };
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      const existing = await prisma.checkoutRequest.findUnique({
+        where: { shop_key: { shop: cleanShop, key: cleanKey } },
+      });
+      if (existing?.response) return { status: "completed", response: existing.response };
+      return { status: "pending" };
+    }
+
+    // Storage unavailable: fail open rather than block checkout, but keep an
+    // in-process guard so a double click cannot create two invoices.
+    console.warn("[DB claimCheckoutRequest fallback]:", err instanceof Error ? err.message : err);
+    const memoryKey = checkoutRequestKey(cleanShop, cleanKey);
+    const existing = memoryCheckoutRequests.get(memoryKey);
+    if (existing?.response) return { status: "completed", response: existing.response };
+    if (existing) return { status: "pending" };
+    memoryCheckoutRequests.set(memoryKey, { createdAt: Date.now() });
+    return { status: "claimed" };
+  }
+}
+
+export async function completeCheckoutRequest(
+  shop: string,
+  key: string,
+  data: { invoiceUrl: string; draftOrderId?: string; response: string }
+): Promise<void> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanKey = String(key || "").trim().slice(0, 100);
+  if (!cleanShop || !cleanKey) return;
+
+  memoryCheckoutRequests.set(checkoutRequestKey(cleanShop, cleanKey), {
+    response: data.response,
+    invoiceUrl: data.invoiceUrl,
+    createdAt: Date.now(),
+  });
+
+  try {
+    await prisma.checkoutRequest.update({
+      where: { shop_key: { shop: cleanShop, key: cleanKey } },
+      data: {
+        invoiceUrl: data.invoiceUrl,
+        draftOrderId: data.draftOrderId || null,
+        response: data.response,
+      },
+    });
+  } catch (err) {
+    console.warn("[DB completeCheckoutRequest]:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** Releases a claim after a failed attempt so the shopper can retry. */
+export async function releaseCheckoutRequest(shop: string, key: string): Promise<void> {
+  const cleanShop = normalizeShopDomain(shop);
+  const cleanKey = String(key || "").trim().slice(0, 100);
+  if (!cleanShop || !cleanKey) return;
+
+  memoryCheckoutRequests.delete(checkoutRequestKey(cleanShop, cleanKey));
+
+  try {
+    await prisma.checkoutRequest.delete({
+      where: { shop_key: { shop: cleanShop, key: cleanKey } },
+    });
+  } catch {
+    // Already gone or storage unavailable — nothing to do.
+  }
 }

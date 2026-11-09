@@ -14,6 +14,7 @@ describes how the app handles personal data.
 | Store domain, offline access tokens | Neon `Session` | Authenticate Admin API calls | Until uninstall; deleted on `app/uninstalled` |
 | App settings (deposits, rules, SMS/WhatsApp config, Meta pixel + token) | Neon `PartialCodSettings`, `DepositRule` | Provide the app features | Until `shop/redact` |
 | OTP phone number + code | Neon `OtpSession` | Verify the customer before a Partial COD order | 10 minutes; expired rows pruned on each OTP request and on admin load |
+| Checkout idempotency key + draft invoice URL | Neon `CheckoutRequest` | Return the same invoice when a checkout request is retried | 24 hours; pruned opportunistically on new checkouts and on `shop/redact` |
 | Delivery pincode, deposit/balance, rule label | Shopify order tags/notes (not the app DB) | Merchant support and cash collection | Merchant's Shopify retention |
 | Customer name/email/phone/city/zip | Not stored; read from Shopify and SHA-256 hashed for Meta CAPI | Merchant's own ad attribution | Not retained by the app |
 | Server logs | Render | Diagnostics and abuse prevention | 7 days (provider default); no OTP codes or contact details |
